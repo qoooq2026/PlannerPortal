@@ -233,7 +233,8 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
   <!-- 選成員 -->
   <div id="sceneMember" class="scene" style="display:none">
     <div class="scene-title">選擇成員</div>
-    <div id="memberGrid" class="member-grid"></div>
+    <div id="memberGrid" class="member-grid"><div class="loader">載入中…</div></div>
+    <div id="teamOverview" style="margin-top:20px"></div>
   </div>
 
   <!-- 任務牆 -->
@@ -287,12 +288,14 @@ async function api(action, params={}) {
   return d;
 }
 async function apiPost(body) {
-  // ★ POST 也帶 mode=planner，讓 doPost 路由正確
-  const r = await fetch(GAS_URL, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({...body, mode:'planner'})
+  // GAS 不支援跨域 POST（CORS preflight 被擋）
+  // 改用 GET + query string 傳所有參數
+  const url = new URL(GAS_URL);
+  url.searchParams.set('mode', 'planner');
+  Object.entries({...body}).forEach(([k,v]) => {
+    if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
   });
+  const r = await fetch(url.toString());
   const d = await r.json();
   if (d.ok === false) throw new Error(d.error || 'API error');
   return d;
@@ -367,12 +370,19 @@ function chooseTeam(team) {
 // ─── 成員 ──────────────────────────────────────────────────
 async function loadMembers(team) {
   show('sceneMember');
+  g('memberGrid').innerHTML = '<div class="loader">載入中…</div>';
+  g('teamOverview').innerHTML = '<div class="loader">載入進度中…</div>';
   try {
     const d = await api('members',{team});
-    g('memberGrid').innerHTML = (d.members||[]).map(m =>
+    const members = d.members || [];
+    g('memberGrid').innerHTML = members.map(m =>
       `<button class="member-btn" onclick="chooseMember('${esc(m)}')">${html(m)}</button>`
     ).join('') || '<div class="empty">沒有組員</div>';
-  } catch(e) { g('memberGrid').innerHTML=`<div class="empty">載入失敗：${html(e.message)}</div>`; }
+    renderTeamOverview(members, team);
+  } catch(e) {
+    g('memberGrid').innerHTML = `<div class="empty">載入失敗：${html(e.message)}</div>`;
+    g('teamOverview').innerHTML = '';
+  }
 }
 function chooseMember(member) {
   S.member = member;
@@ -526,7 +536,7 @@ function taskRowHTML(t, type) {
 
   return `<div class="task-row ${st.key}" id="${id}">
     <div class="task-head" onclick="toggleTask('${id}','${esc(t.taskId)}','${type}')">
-      <span class="task-id" title="${html(t.taskId)}">${html(t.taskId)}</span>
+      <span class="task-id" title="${html(t.taskId)}" style="user-select:text;cursor:text">${html(t.taskId)}</span>
       <span class="task-brand">${html(t.brand||'')}</span>
       <span class="task-product">${html(t.product||'')}</span>
       ${t.persona?`<span class="task-persona" title="${html(t.persona)}">👤 ${html(t.persona)}</span>`:''}
@@ -601,9 +611,7 @@ function buildEditPanel(rowId, taskId, type, t, prodInfo) {
 
   if (isVideo) {
     out += `<div class="ep-full"><div class="field-label">畫面說明</div>${ta('ep_img_'+rowId, t['畫面']||'')}</div>`;
-    if (t['客戶回饋']||t.clientFeedback) {
-      out += `<div class="ep-full"><div class="field-label">客戶回饋</div><div class="field-value-box" style="border-color:#fcd49a;background:var(--yellow-light)">${html(t['客戶回饋']||t.clientFeedback)}</div></div>`;
-    }
+    out += `<div class="ep-full"><div class="field-label">客戶回饋</div>${ta('ep_cfeedback_'+rowId, t['客戶回饋']||t.clientFeedback||'')}  </div>`;
     out += `<hr class="ep-divider"/><div class="ep-section-label">🎬 影片區</div>`;
     out += `<div><div class="field-label">影片狀態</div>${sel('ep_vstatus_'+rowId, VSTATUS_OPTS, t['影片-狀態']||t.videoStatus||'')}</div>`;
     out += `<div><div class="field-label">影片回饋</div>${ta('ep_vfeedback_'+rowId, t['影片-回饋']||t.videoFeedback||'','可空白')}</div>`;
@@ -616,12 +624,10 @@ function buildEditPanel(rowId, taskId, type, t, prodInfo) {
       </div>`;
     });
     out += `<div class="ep-full"><div class="field-label">留言</div>${ta('ep_comment_'+rowId, t['留言']||'')}</div>`;
-    ['留言內圖片1','留言內圖片2'].forEach((f,i)=>{
-      out += `<div><div class="field-label">${f}</div>${linkField('ep_cimg'+(i+1)+'_'+rowId, t[f]||'', f)}</div>`;
-    });
-    if (t['客戶回饋']||t.clientFeedback) {
-      out += `<div class="ep-full"><div class="field-label">客戶回饋</div><div class="field-value-box" style="border-color:#fcd49a;background:var(--yellow-light)">${html(t['客戶回饋']||t.clientFeedback)}</div></div>`;
-    }
+    // 留言內圖片：只顯示1欄（表頭只有1個）
+    const cimgKey = t['留言內圖片1'] !== undefined ? '留言內圖片1' : '留言內圖片';
+    out += `<div class="ep-full"><div class="field-label">留言內圖片</div>${linkField('ep_cimg1_'+rowId, t[cimgKey]||'', '留言內圖片')}</div>`;
+    out += `<div class="ep-full"><div class="field-label">客戶回饋</div>${ta('ep_cfeedback_'+rowId, t['客戶回饋']||t.clientFeedback||'')}  </div>`;
   }
 
   if (prodInfo && (prodInfo.info||prodInfo.notes)) {
@@ -658,6 +664,8 @@ async function saveTask(rowId, taskId, type, sheetName) {
   if (personaVal) fields['人設'] = personaVal;
 
   fields['腳本內容'] = gv('ep_content_'+rowId);
+  const cfVal = gv('ep_cfeedback_'+rowId);
+  if (cfVal !== undefined) fields['客戶回饋'] = cfVal;
 
   if (isVideo) {
     fields['畫面'] = gv('ep_img_'+rowId);
@@ -669,7 +677,11 @@ async function saveTask(rowId, taskId, type, sheetName) {
   } else {
     fields['留言'] = gv('ep_comment_'+rowId);
     ['圖片1','圖片2','圖片3'].forEach((f,i)=>{ const u=gv('ep_img'+(i+1)+'_'+rowId).trim(); if(u)linkFields[f]=u; });
-    ['留言內圖片1','留言內圖片2'].forEach((f,i)=>{ const u=gv('ep_cimg'+(i+1)+'_'+rowId).trim(); if(u)linkFields[f]=u; });
+    const cimgVal = gv('ep_cimg1_'+rowId).trim();
+    if (cimgVal) {
+      linkFields['留言內圖片1'] = cimgVal;
+      linkFields['留言內圖片'] = cimgVal; // 相容兩種表頭
+    }
   }
 
   try {
@@ -722,6 +734,87 @@ function closeLB(){g('lightbox').classList.remove('show');}
 function toast(msg){
   const el=g('toast');el.textContent=msg;el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'),3000);
+}
+
+
+// ─── 小隊整體進度概覽（成員選擇頁顯示）───────────────────
+async function renderTeamOverview(members, team) {
+  if (!members.length) { g('teamOverview').innerHTML = ''; return; }
+  g('teamOverview').innerHTML = '<div class="loader">載入小隊進度中…</div>';
+  try {
+    // 並行抓所有成員的任務
+    const results = await Promise.all(members.map(m => api('tasks',{member:m}).catch(()=>({video:[],thread:[]}))));
+    const memberStats = members.map((m, i) => {
+      const d = results[i];
+      const all = [
+        ...(d.video||[]).map(t=>({t,type:'video'})),
+        ...(d.thread||[]).map(t=>({t,type:'thread'}))
+      ];
+      const counts = {overdue:0,modify:0,active:0,confirm:0,making:0,done:0};
+      all.forEach(({t,type})=>{ const s=taskStatus(t,type); counts[s.key]=(counts[s.key]||0)+1; });
+      const total = all.length;
+      return { member:m, counts, total, tasks: all };
+    });
+
+    const today = new Date(); today.setHours(0,0,0,0);
+    const days = [];
+    for (let i=-3; i<=13; i++) { const d=new Date(today); d.setDate(d.getDate()+i); days.push(d); }
+
+    let html_out = `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow);margin-bottom:16px">
+      <div style="padding:12px 18px;border-bottom:1px solid var(--border);background:var(--surface2);font-size:12px;font-weight:700;color:var(--ink2)">📊 小隊本週進度</div>
+      <div style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap">`;
+
+    memberStats.forEach(({member, counts}) => {
+      html_out += `<div style="flex:1;min-width:140px;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:12px 14px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px">${html(member)}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${counts.overdue?`<span style="background:var(--red-light);color:var(--red);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">逾期 ${counts.overdue}</span>`:''}
+          ${counts.modify?`<span style="background:var(--yellow-light);color:var(--yellow);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">待修 ${counts.modify}</span>`:''}
+          ${counts.active?`<span style="background:var(--blue-light);color:var(--blue);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">進行 ${counts.active}</span>`:''}
+          ${counts.confirm?`<span style="background:var(--purple-light);color:var(--purple);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">確認中 ${counts.confirm}</span>`:''}
+          ${counts.making?`<span style="background:var(--bg2);color:var(--ink2);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">製作中 ${counts.making}</span>`:''}
+          ${counts.done?`<span style="background:var(--green-light);color:var(--green);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700">完成 ${counts.done}</span>`:''}
+          ${!counts.overdue&&!counts.modify&&!counts.active&&!counts.confirm&&!counts.making&&!counts.done?'<span style="color:var(--ink3);font-size:11px">無任務</span>':''}
+        </div>
+      </div>`;
+    });
+    html_out += `</div></div>`;
+
+    // 小隊甘特
+    const allTasks = memberStats.flatMap(({member,tasks})=>tasks.map(x=>({...x,memberName:member})));
+    const activeTasks = allTasks.filter(({t,type})=>taskStatus(t,type).key!=='done').slice(0,20);
+
+    if (activeTasks.length > 0) {
+      const ths = `<tr><th style="text-align:left;min-width:80px;padding-left:10px">成員</th><th style="text-align:left;min-width:120px">任務</th>${
+        days.map(d=>{
+          const isToday=d.getTime()===today.getTime();
+          return `<th class="${isToday?'today-col':''}" style="min-width:26px;font-size:9px">${d.getMonth()+1}/${d.getDate()}</th>`;
+        }).join('')}</tr>`;
+      const trs = activeTasks.map(({t,type,memberName})=>{
+        const due=parseDateTW(t.dueDate);
+        const st=taskStatus(t,type);
+        const label=`${t.brand||''} ${t.product||''}`.trim();
+        const cells=days.map(d=>{
+          if(!due)return '<td></td>';
+          if(Math.abs((due.getTime()-d.getTime())/86400000)<0.5){
+            const cls=st.key==='overdue'?'gbar-overdue':type==='video'?'gbar-video':'gbar-thread';
+            return `<td><div class="gantt-bar ${cls}" title="${html(label)}">${html(label.slice(0,8))}</div></td>`;
+          }
+          return '<td></td>';
+        }).join('');
+        return `<tr><td class="row-label" style="background:var(--surface)">${html(memberName)}</td><td class="row-label">${html(label)}</td>${cells}</tr>`;
+      }).join('');
+
+      html_out += `<div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow)">
+        <div style="padding:12px 18px;border-bottom:1px solid var(--border);background:var(--surface2);font-size:12px;font-weight:700;color:var(--ink2)">📅 兩週甘特（進行中任務）</div>
+        <div style="overflow-x:auto"><table class="gantt-table"><thead>${ths}</thead><tbody>${trs}</tbody></table></div>
+      </div>`;
+    }
+
+    g('teamOverview').innerHTML = html_out;
+  } catch(e) {
+    g('teamOverview').innerHTML = `<div class="empty">進度載入失敗：${html(e.message)}</div>`;
+  }
 }
 
 init();
