@@ -274,6 +274,7 @@ const VSTATUS_OPTS = ['影片需確認','需修改','修改稿需確認','確認
 // ─── API ───────────────────────────────────────────────────
 async function api(action, params={}) {
   const url = new URL(GAS_URL);
+  url.searchParams.set('mode', 'planner'); 
   url.searchParams.set('action', action);
   Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v ?? ''));
   const r = await fetch(url.toString());
