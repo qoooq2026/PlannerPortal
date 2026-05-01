@@ -303,8 +303,9 @@ async function apiPost(body) {
 
 // ─── 狀態計算 ──────────────────────────────────────────────
 function taskStatus(t, type) {
-  const s  = t.status || '';
-  const vs = t.videoStatus || '';
+  // 優先用客戶表的狀態（'狀態' 欄），fallback 主控表的 status 欄
+  const s  = t['狀態'] || t.status || '';
+  const vs = t['影片-狀態'] || t.videoStatus || '';
   const due = parseDateTW(t.dueDate);
   const now = new Date(); now.setHours(0,0,0,0);
   const isOverdue = due && due < now;
@@ -313,19 +314,22 @@ function taskStatus(t, type) {
     if (s === '確認完畢')          return { key:'done',    label:'確認完畢',   cls:'done' };
     if (s === '客戶已回需修改')    return { key:'modify',  label:'腳本待修改', cls:'modify' };
     if (s === '客戶尚未確認' || s === '修改完成，需確認') return { key:'confirm', label:'客戶確認中', cls:'confirm' };
+    // 空白 = 腳本進行中
     if (isOverdue)                 return { key:'overdue', label:'已逾期',     cls:'overdue' };
-    return { key:'active', label:'進行中', cls:'active' };
+    return { key:'active', label:'腳本進行中', cls:'active' };
   } else {
     if (s === '確認完畢') {
-      if (vs === '確認完畢')       return { key:'done',    label:'全部完成',       cls:'done' };
-      if (vs === '需修改')         return { key:'modify',  label:'影片待修改',     cls:'modify' };
-      if (vs === '影片需確認' || vs === '修改稿需確認') return { key:'confirm', label:'影片確認中', cls:'confirm' };
+      if (vs === '確認完畢')                              return { key:'done',    label:'全部完成',       cls:'done' };
+      if (vs === '需修改')                                return { key:'modify',  label:'影片待修改',     cls:'modify' };
+      if (vs === '影片需確認' || vs === '修改稿需確認')   return { key:'confirm', label:'影片確認中',     cls:'confirm' };
+      // 腳本OK，影片狀態空白 = 影片製作中
       return { key:'making', label:'影片製作中', cls:'making' };
     }
     if (s === '客戶已回需修改')    return { key:'modify',  label:'腳本待修改',   cls:'modify' };
-    if (s === '客戶尚未確認' || s === '修改完成，需確認') return { key:'confirm', label:'客戶確認中', cls:'confirm' };
+    if (s === '客戶尚未確認' || s === '修改完成，需確認') return { key:'confirm', label:'客戶確認中',     cls:'confirm' };
+    // 空白 = 腳本進行中
     if (isOverdue)                 return { key:'overdue', label:'已逾期',       cls:'overdue' };
-    return { key:'active', label:'進行中', cls:'active' };
+    return { key:'active', label:'腳本進行中', cls:'active' };
   }
 }
 
@@ -530,17 +534,20 @@ function taskRowHTML(t, type) {
   const st = taskStatus(t, type);
   const id = 'tr_'+t.taskId.replace(/[^a-zA-Z0-9]/g,'_')+'_'+type;
 
-  // ★ 回饋內容：影音優先顯示 videoFeedback，否則顯示 clientFeedback
-  const feedbackText = (type==='video' && t.videoFeedback) ? t.videoFeedback
-    : (t.clientFeedback || '');
+  // 人設：直接從 tasks 資料取（已從客戶表抓好）
+  const personaText = t['人設'] || t.persona || '';
+  // 回饋：影音優先影片回饋，否則客戶回饋
+  const feedbackText = (type==='video' && (t['影片-回饋']||t.videoFeedback))
+    ? (t['影片-回饋']||t.videoFeedback)
+    : (t['客戶回饋']||t.clientFeedback||'');
 
   return `<div class="task-row ${st.key}" id="${id}">
     <div class="task-head" onclick="toggleTask('${id}','${esc(t.taskId)}','${type}')">
-      <span class="task-id" title="${html(t.taskId)}" style="user-select:text;cursor:text">${html(t.taskId)}</span>
+      <span class="task-id" title="${html(t.taskId)}" style="user-select:text;cursor:text;font-size:9px">${html(t.taskId)}</span>
       <span class="task-brand">${html(t.brand||'')}</span>
       <span class="task-product">${html(t.product||'')}</span>
-      ${t.persona?`<span class="task-persona" title="${html(t.persona)}">👤 ${html(t.persona)}</span>`:''}
-      ${feedbackText?`<span class="task-feedback" title="${html(feedbackText)}">💬 ${html(feedbackText)}</span>`:''}
+      ${personaText?`<span class="task-persona" title="${html(personaText)}">👤 ${html(personaText)}</span>`:''}
+      ${feedbackText?`<span class="task-feedback" title="${html(feedbackText)}">💬 ${html(feedbackText.slice(0,30))}</span>`:''}
       <span class="badge ${st.cls}">${st.label}</span>
       <span class="task-due">${html(t.dueDate||'')}</span>
       <span class="task-chevron">›</span>
@@ -568,23 +575,19 @@ async function loadEditPanel(rowId, taskId, type) {
   const ep = document.getElementById('ep_'+rowId);
   if (!ep) return;
   try {
-    // ★ 速度優化：taskDetail 跟 productInfo 並行
-    const plannerTask = type==='video'
-      ? S.tasks.video.find(t=>t.taskId===taskId)
-      : S.tasks.thread.find(t=>t.taskId===taskId);
+    // ★ tasks 已從客戶表帶完整資料，直接用，不打 taskDetail
+    const t = (type==='video'
+      ? S.tasks.video.find(x=>x.taskId===taskId)
+      : S.tasks.thread.find(x=>x.taskId===taskId)) || {};
 
-    // 先用 plannerTask 的品牌/商品，平行發兩個請求
-    const brand   = plannerTask?.brand   || '';
-    const product = plannerTask?.product || '';
-
-    const [detail, prodInfo] = await Promise.all([
-      api('taskDetail', {taskId, type}),
-      brand && product ? api('productInfo',{brand,product}).catch(()=>null) : Promise.resolve(null)
-    ]);
-
-    const t = detail.task || {};
-    const merged = Object.assign({}, plannerTask||{}, t);
-    ep.innerHTML = buildEditPanel(rowId, taskId, type, merged, prodInfo);
+    // 只打 productInfo（較輕量）
+    const brand   = t.brand   || '';
+    const product = t.product || '';
+    let prodInfo = null;
+    if (brand && product) {
+      prodInfo = await api('productInfo',{brand,product}).catch(()=>null);
+    }
+    ep.innerHTML = buildEditPanel(rowId, taskId, type, t, prodInfo);
   } catch(e) {
     ep.innerHTML = `<div class="empty">載入失敗：${html(e.message)}</div>`;
   }
