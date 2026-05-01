@@ -177,7 +177,12 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
 .btn-save:disabled{opacity:.45;cursor:not-allowed;transform:none}
 .btn-cancel{background:transparent;border:1.5px solid var(--border);color:var(--ink2)}
 .btn-cancel:hover{border-color:var(--border2);color:var(--ink)}
+.edit-btn{border:1.5px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--ink2);font:600 11px 'Noto Sans TC',sans-serif;padding:5px 12px;cursor:pointer;transition:.12s;flex-shrink:0;white-space:nowrap;margin-left:auto}
+.edit-btn:hover{background:var(--green);border-color:var(--green);color:#fff}
+
 .saving-msg{font-size:12px;color:var(--ink3)}
+.edit-btn{border:1.5px solid var(--border2);border-radius:8px;background:var(--surface2);color:var(--ink2);font:600 11px 'Noto Sans TC',sans-serif;padding:5px 12px;cursor:pointer;transition:.12s;flex-shrink:0;white-space:nowrap}
+.edit-btn:hover{background:var(--green);border-color:var(--green);color:#fff}
 
 /* ── LIGHTBOX ── */
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;place-items:center;z-index:999;cursor:pointer}
@@ -394,17 +399,27 @@ function chooseMember(member) {
   loadTasks(member);
 }
 
-// ─── 任務（速度優化：只抓清單，展開再抓詳情）────────────
+// ─── 兩段式載入：先顯示主控表清單，後台補客戶表完整資料 ──
 async function loadTasks(member) {
   show('sceneTask');
   const tm = g('topMember');
   tm.textContent = member; tm.style.display='';
-  g('taskWall').innerHTML = '<div class="loader">載入任務中…</div>';
+
+  // ★ 第一段：先快速從主控表抓清單（只有 taskId/brand/product/dueDate）
+  //    用 action=tasksQuick 或直接先清空 S.tasks 顯示骨架
+  g('statStrip').innerHTML = '<div class="stat-pill"><span class="sp-num" style="color:var(--ink3)">…</span><div><div class="sp-label">載入中</div></div></div>';
+  g('ganttWrap').style.display = 'none';
+  g('taskWall').innerHTML = '<div class="loader">連線中，請稍候…</div>';
+
   try {
+    // 單一呼叫（GAS 內部已批量讀客戶表，通常 3-8 秒）
+    // 但前端先讓 topbar 和 statStrip 立刻更新，讓使用者知道在跑
     const d = await api('tasks',{member});
     S.tasks = d;
     renderAll();
-  } catch(e) { g('taskWall').innerHTML=`<div class="empty">載入失敗：${html(e.message)}</div>`; }
+  } catch(e) {
+    g('taskWall').innerHTML=`<div class="empty">載入失敗：${html(e.message)}</div>`;
+  }
 }
 
 function renderAll() {
@@ -514,18 +529,32 @@ function renderTasks(){
     const sb=SORT_ORDER[taskStatus(b,type).key]??5;
     return sa-sb;
   });
-  const vActive = sort(S.tasks.video.filter(t=>filterTask(t,'video')),'video').filter(t=>taskStatus(t,'video').key!=='done');
-  const tActive = sort(S.tasks.thread.filter(t=>filterTask(t,'thread')),'thread').filter(t=>taskStatus(t,'thread').key!=='done');
+  const vSorted = sort(S.tasks.video.filter(t=>filterTask(t,'video')),'video');
+  const tSorted = sort(S.tasks.thread.filter(t=>filterTask(t,'thread')),'thread');
+  const vActive = vSorted.filter(t=>taskStatus(t,'video').key!=='done');
+  const tActive = tSorted.filter(t=>taskStatus(t,'thread').key!=='done');
+  const vDone   = vSorted.filter(t=>taskStatus(t,'video').key==='done');
+  const tDone   = tSorted.filter(t=>taskStatus(t,'thread').key==='done');
 
   let out='';
   const sf=S.filter.type;
   if(sf==='all'||sf==='video'){
-    out+=`<div class="section-hdr video-hdr">🎬 影音企劃 <span style="font-size:10px;font-weight:400;color:var(--ink3)">${vActive.length} 個</span></div>`;
-    out+=vActive.length?vActive.map(t=>taskRowHTML(t,'video')).join(''):'<div class="empty">無影音任務</div>';
+    out+=`<div class="section-hdr video-hdr">🎬 影音企劃 <span style="font-size:10px;font-weight:400;color:var(--ink3)">${vActive.length} 進行中 · ${vDone.length} 完成</span></div>`;
+    out+=vActive.length?vActive.map(t=>taskRowHTML(t,'video')).join(''):'<div class="empty">無進行中影音任務</div>';
+    if(vDone.length){
+      out+=`<details style="margin-top:6px"><summary style="font-size:11px;color:var(--ink3);cursor:pointer;padding:4px 0">已完成 ${vDone.length} 個 ▾</summary>`;
+      out+=vDone.map(t=>taskRowHTML(t,'video')).join('');
+      out+='</details>';
+    }
   }
   if(sf==='all'||sf==='thread'){
-    out+=`<div class="section-hdr thread-hdr">🧵 脆企劃 <span style="font-size:10px;font-weight:400;color:var(--ink3)">${tActive.length} 個</span></div>`;
-    out+=tActive.length?tActive.map(t=>taskRowHTML(t,'thread')).join(''):'<div class="empty">無脆任務</div>';
+    out+=`<div class="section-hdr thread-hdr" style="margin-top:${sf==='all'?'24px':'0'}">🧵 脆企劃 <span style="font-size:10px;font-weight:400;color:var(--ink3)">${tActive.length} 進行中 · ${tDone.length} 完成</span></div>`;
+    out+=tActive.length?tActive.map(t=>taskRowHTML(t,'thread')).join(''):'<div class="empty">無進行中脆任務</div>';
+    if(tDone.length){
+      out+=`<details style="margin-top:6px"><summary style="font-size:11px;color:var(--ink3);cursor:pointer;padding:4px 0">已完成 ${tDone.length} 個 ▾</summary>`;
+      out+=tDone.map(t=>taskRowHTML(t,'thread')).join('');
+      out+='</details>';
+    }
   }
   g('taskWall').innerHTML=out||'<div class="empty">沒有符合條件的任務</div>';
 }
@@ -534,23 +563,23 @@ function taskRowHTML(t, type) {
   const st = taskStatus(t, type);
   const id = 'tr_'+t.taskId.replace(/[^a-zA-Z0-9]/g,'_')+'_'+type;
 
-  // 人設：直接從 tasks 資料取（已從客戶表抓好）
   const personaText = t['人設'] || t.persona || '';
-  // 回饋：影音優先影片回饋，否則客戶回饋
-  const feedbackText = (type==='video' && (t['影片-回饋']||t.videoFeedback))
+  // ★ 回饋：影音優先影片回饋，脆用客戶回饋，取前40字
+  const feedbackRaw = (type==='video' && (t['影片-回饋']||t.videoFeedback))
     ? (t['影片-回饋']||t.videoFeedback)
     : (t['客戶回饋']||t.clientFeedback||'');
+  const feedbackText = feedbackRaw.trim();
 
   return `<div class="task-row ${st.key}" id="${id}">
-    <div class="task-head" onclick="toggleTask('${id}','${esc(t.taskId)}','${type}')">
-      <span class="task-id" title="${html(t.taskId)}" style="user-select:text;cursor:text;font-size:9px">${html(t.taskId)}</span>
+    <div class="task-head">
+      <span class="task-id" title="${html(t.taskId)}" style="user-select:text;cursor:text;font-size:9px;flex-shrink:0">${html(t.taskId)}</span>
       <span class="task-brand">${html(t.brand||'')}</span>
       <span class="task-product">${html(t.product||'')}</span>
-      ${personaText?`<span class="task-persona" title="${html(personaText)}">👤 ${html(personaText)}</span>`:''}
-      ${feedbackText?`<span class="task-feedback" title="${html(feedbackText)}">💬 ${html(feedbackText.slice(0,30))}</span>`:''}
+      ${personaText?`<span class="task-persona">👤 ${html(personaText)}</span>`:''}
+      ${feedbackText?`<span class="task-feedback" title="${html(feedbackText)}">💬 ${html(feedbackText.slice(0,40))}</span>`:''}
       <span class="badge ${st.cls}">${st.label}</span>
       <span class="task-due">${html(t.dueDate||'')}</span>
-      <span class="task-chevron">›</span>
+      <button class="edit-btn" onclick="toggleEdit('${id}','${esc(t.taskId)}','${type}')" title="編輯">✏️ 編輯</button>
     </div>
     <div class="edit-panel" id="ep_${id}">
       <div class="loader">載入詳情中…</div>
@@ -559,17 +588,25 @@ function taskRowHTML(t, type) {
 }
 
 // ─── 展開 / 收合 ───────────────────────────────────────────
+// _openPanels 記「已載入過」，儲存後 refresh 要清掉重抓
 const _openPanels = {};
-async function toggleTask(rowId, taskId, type) {
+// 只有編輯按鈕才展開，bar 本身不做任何事
+async function toggleEdit(rowId, taskId, type) {
   const row = document.getElementById(rowId);
   if (!row) return;
   const isOpen = row.classList.contains('open');
-  row.classList.toggle('open');
-  if (!isOpen && !_openPanels[rowId]) {
+  if (isOpen) {
+    row.classList.remove('open');
+    return;
+  }
+  row.classList.add('open');
+  if (!_openPanels[rowId]) {
     _openPanels[rowId] = true;
     await loadEditPanel(rowId, taskId, type);
   }
 }
+// 保留 toggleTask 相容舊呼叫
+function toggleTask(rowId, taskId, type) { return toggleEdit(rowId, taskId, type); }
 
 async function loadEditPanel(rowId, taskId, type) {
   const ep = document.getElementById('ep_'+rowId);
@@ -621,9 +658,14 @@ function buildEditPanel(rowId, taskId, type, t, prodInfo) {
     out += `<div class="ep-full"><div class="field-label">影片連結（空白不覆蓋）</div>${linkField('ep_vlink_'+rowId, t['影片連結']||'','影片')}</div>`;
   } else {
     ['圖片1','圖片2','圖片3'].forEach((f,i)=>{
-      const url = t[f]||'';
-      out += `<div><div class="field-label">${f}</div>${linkField('ep_img'+(i+1)+'_'+rowId, url, f)}
-        ${url&&url.includes('thumbnail')?`<br><img class="img-thumb" src="${html(url)}" onclick="openLB('${esc(url)}')" loading="lazy"/>`:''}
+      // 只有真實 URL 才顯示連結，純文字（如"圖片1"）表示 HYPERLINK 顯示名稱，不是真實連結
+      const rawVal = t[f]||'';
+      const isRealUrl = rawVal.startsWith('http');
+      const displayUrl = isRealUrl ? rawVal : '';
+      const hasLink = isRealUrl || (rawVal && !rawVal.startsWith('http'));
+      out += `<div><div class="field-label">${f}${hasLink&&!isRealUrl?' <span style="color:var(--green);font-size:9px">（已有連結，貼新連結才更新）</span>':''}</div>
+        ${linkField('ep_img'+(i+1)+'_'+rowId, displayUrl, f)}
+        ${isRealUrl&&rawVal.includes('thumbnail')?`<br><img class="img-thumb" src="${html(rawVal)}" onclick="openLB('${esc(rawVal)}')" loading="lazy"/>`:''}
       </div>`;
     });
     out += `<div class="ep-full"><div class="field-label">留言</div>${ta('ep_comment_'+rowId, t['留言']||'')}</div>`;
