@@ -284,8 +284,9 @@ async function api(action, params={}) {
 }
 async function apiPost(body) {
   const r = await fetch(GAS_URL, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(body)
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({...body, mode:'planner'})
   });
   const d = await r.json();
   if (d.ok === false) throw new Error(d.error || 'API error');
