@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>企劃任務牆</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#0e0f11;
+  --surface:#161719;
+  --surface2:#1e2023;
+  --border:#2a2d33;
+  --border2:#363a42;
+  --ink:#e8eaed;
+  --ink2:#9aa0ab;
+  --ink3:#5a6170;
+  --green:#22c55e;
+  --green-dim:#14532d;
+  --green-bg:rgba(34,197,94,.08);
+  --yellow:#f59e0b;
+  --yellow-dim:#78350f;
+  --yellow-bg:rgba(245,158,11,.08);
+  --red:#ef4444;
+  --red-dim:#7f1d1d;
+  --red-bg:rgba(239,68,68,.08);
+  --blue:#60a5fa;
+  --blue-dim:#1e3a5f;
+  --blue-bg:rgba(96,165,250,.08);
+  --purple:#a78bfa;
+  --purple-dim:#4c1d95;
+  --purple-bg:rgba(167,139,250,.08);
+  --muted:#6b7280;
+  --radius:10px;
+  --radius-lg:16px;
+  font-size:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:'Noto Sans TC',sans-serif;min-height:100vh;line-height:1.5}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ── TOPBAR ── */
+.topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;position:sticky;top:0;z-index:100}
+.topbar-logo{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:var(--green);letter-spacing:.05em}
+.topbar-sep{width:1px;height:20px;background:var(--border2)}
+.topbar-title{font-size:13px;color:var(--ink2)}
+.topbar-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+/* ── WRAP ── */
+.wrap{max-width:1200px;margin:0 auto;padding:24px 20px}
+
+/* ── SCENE: 選小隊 / 選成員 ── */
+.scene{animation:fadeIn .18s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.scene-title{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:16px}
+.team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.team-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px 18px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;gap:6px}
+.team-card:hover{border-color:var(--green);background:var(--green-bg);transform:translateY(-2px)}
+.team-card .tc-icon{font-size:28px}
+.team-card .tc-name{font-weight:700;font-size:15px}
+.team-card .tc-sub{font-size:11px;color:var(--ink3)}
+.member-grid{display:flex;flex-wrap:wrap;gap:10px}
+.member-btn{background:var(--surface);border:1px solid var(--border);border-radius:100px;padding:9px 20px;cursor:pointer;font:600 13px 'Noto Sans TC',sans-serif;color:var(--ink);transition:.15s}
+.member-btn:hover,.member-btn.active{background:var(--green);border-color:var(--green);color:#000}
+
+/* ── STAT STRIP ── */
+.stat-strip{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap}
+.stat-pill{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:100px;padding:7px 16px;font-size:12px}
+.stat-pill .sp-num{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px}
+.stat-pill.overdue .sp-num{color:var(--red)}
+.stat-pill.modify  .sp-num{color:var(--yellow)}
+.stat-pill.active  .sp-num{color:var(--blue)}
+.stat-pill.confirm .sp-num{color:var(--purple)}
+.stat-pill.done    .sp-num{color:var(--green)}
+
+/* ── GANTT ── */
+.gantt-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:20px;overflow:hidden}
+.gantt-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.gantt-head-title{font-size:12px;font-weight:700;color:var(--ink2);letter-spacing:.06em;text-transform:uppercase}
+.gantt-scroll{overflow-x:auto}
+.gantt-table{border-collapse:collapse;width:100%;min-width:700px}
+.gantt-table th{font-size:11px;font-weight:700;color:var(--ink3);padding:8px 10px;border-bottom:1px solid var(--border);background:var(--surface);white-space:nowrap;text-align:center}
+.gantt-table th.today-col{color:var(--green);border-bottom-color:var(--green)}
+.gantt-table td{padding:4px 6px;border-bottom:1px solid var(--border);vertical-align:middle}
+.gantt-table td.row-label{font-size:11px;color:var(--ink2);white-space:nowrap;padding:4px 12px;max-width:130px;overflow:hidden;text-overflow:ellipsis}
+.gantt-bar{height:22px;border-radius:4px;font-size:10px;display:flex;align-items:center;padding:0 6px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;transition:.1s}
+.gantt-bar:hover{filter:brightness(1.2)}
+.gbar-video{background:var(--blue-dim);color:var(--blue);border:1px solid var(--blue)}
+.gbar-thread{background:var(--purple-dim);color:var(--purple);border:1px solid var(--purple)}
+.gbar-overdue{background:var(--red-dim);color:var(--red);border:1px solid var(--red)}
+.gbar-done{background:var(--green-dim);color:var(--green);border:1px solid var(--green)}
+.today-line td{border-left:2px solid var(--green) !important}
+
+/* ── FILTER BAR ── */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.filter-btn{background:var(--surface2);border:1px solid var(--border);border-radius:100px;padding:6px 14px;font:500 12px 'Noto Sans TC',sans-serif;color:var(--ink2);cursor:pointer;transition:.12s}
+.filter-btn:hover{border-color:var(--border2);color:var(--ink)}
+.filter-btn.active{background:var(--green);border-color:var(--green);color:#000;font-weight:700}
+.filter-search{background:var(--surface2);border:1px solid var(--border);border-radius:100px;padding:6px 14px;font:14px 'Noto Sans TC',sans-serif;color:var(--ink);outline:none;width:200px;transition:.12s}
+.filter-search:focus{border-color:var(--blue)}
+.filter-search::placeholder{color:var(--ink3)}
+
+/* ── SECTION HEADER ── */
+.section-hdr{display:flex;align-items:center;gap:8px;margin:20px 0 10px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+.section-hdr::after{content:'';flex:1;height:1px;background:var(--border)}
+.section-hdr.video-hdr{color:var(--blue)}
+.section-hdr.thread-hdr{color:var(--purple)}
+
+/* ── TASK ROW ── */
+.task-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;overflow:hidden;transition:.12s}
+.task-row:hover{border-color:var(--border2)}
+.task-row.overdue{border-left:3px solid var(--red)}
+.task-row.modify{border-left:3px solid var(--yellow)}
+.task-row.confirm{border-left:3px solid var(--purple)}
+
+.task-head{display:flex;align-items:center;gap:8px;padding:11px 14px;cursor:pointer;flex-wrap:wrap}
+.task-id{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink3);background:var(--surface2);border-radius:4px;padding:2px 6px;white-space:nowrap}
+.task-brand{font-size:12px;font-weight:700;color:var(--ink)}
+.task-product{font-size:12px;color:var(--ink2)}
+.task-persona{font-size:11px;color:var(--purple);background:var(--purple-bg);border-radius:4px;padding:2px 7px}
+.badge{display:inline-flex;align-items:center;gap:4px;border-radius:100px;padding:3px 9px;font-size:10px;font-weight:700;white-space:nowrap}
+.badge.overdue{background:var(--red-bg);color:var(--red);border:1px solid var(--red-dim)}
+.badge.modify{background:var(--yellow-bg);color:var(--yellow);border:1px solid var(--yellow-dim)}
+.badge.active{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue-dim)}
+.badge.confirm{background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple-dim)}
+.badge.making{background:var(--surface2);color:var(--ink2);border:1px solid var(--border)}
+.badge.done{background:var(--green-bg);color:var(--green);border:1px solid var(--green-dim)}
+.task-due{font-size:11px;color:var(--ink3);margin-left:auto;white-space:nowrap}
+.task-chevron{font-size:12px;color:var(--ink3);transition:transform .18s;flex-shrink:0}
+.task-row.open .task-chevron{transform:rotate(90deg)}
+
+/* ── EDIT PANEL ── */
+.edit-panel{display:none;border-top:1px solid var(--border);background:var(--surface2)}
+.task-row.open .edit-panel{display:block}
+.edit-inner{padding:16px}
+.ep-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ep-full{grid-column:1/-1}
+.field-label{font-size:10px;font-weight:700;color:var(--ink3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px}
+.field-value-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.6;white-space:pre-wrap;color:var(--ink2);min-height:36px}
+.ep-divider{grid-column:1/-1;border:none;border-top:1px dashed var(--border2);margin:4px 0}
+.ep-section-label{grid-column:1/-1;font-size:10px;font-weight:700;color:var(--blue);letter-spacing:.08em;text-transform:uppercase;padding-top:4px}
+.ep-section-label.thread-label{color:var(--purple)}
+
+select,textarea,input[type=text]{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--ink);font:14px 'Noto Sans TC',sans-serif;padding:9px 11px;outline:none;transition:.12s;appearance:auto}
+select:focus,textarea:focus,input[type=text]:focus{border-color:var(--blue);box-shadow:0 0 0 2px rgba(96,165,250,.15)}
+textarea{resize:vertical;min-height:90px;line-height:1.6}
+
+.link-field-wrap{display:flex;gap:6px;align-items:center}
+.link-field-wrap input{flex:1}
+.link-preview{font-size:11px;color:var(--blue);margin-top:4px;word-break:break-all}
+.link-preview a{color:var(--blue)}
+
+/* 圖片預覽 */
+.img-thumb{width:72px;height:72px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer;background:var(--surface2)}
+
+/* 商品摘要 */
+.product-summary{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:12px;line-height:1.7;color:var(--ink2)}
+.product-summary strong{color:var(--ink);display:block;margin-bottom:4px;font-size:11px;letter-spacing:.05em;text-transform:uppercase}
+
+/* 操作列 */
+.edit-actions{display:flex;gap:8px;align-items:center;padding:14px 16px;border-top:1px solid var(--border)}
+.btn{border:none;border-radius:8px;padding:9px 20px;font:700 13px 'Noto Sans TC',sans-serif;cursor:pointer;transition:.13s;letter-spacing:.02em}
+.btn-save{background:var(--green);color:#000}
+.btn-save:hover{background:#16a34a}
+.btn-save:disabled{opacity:.4;cursor:not-allowed}
+.btn-cancel{background:transparent;border:1px solid var(--border);color:var(--ink2)}
+.btn-cancel:hover{border-color:var(--border2);color:var(--ink)}
+.saving-msg{font-size:12px;color:var(--ink3)}
+
+/* ── LIGHTBOX ── */
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;place-items:center;z-index:999;cursor:pointer}
+.lightbox.show{display:grid}
+.lightbox img{max-width:92vw;max-height:90vh;border-radius:8px}
+
+/* ── TOAST ── */
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(8px);background:#111;color:#fff;border:1px solid var(--border2);padding:10px 18px;border-radius:10px;opacity:0;transition:.22s;z-index:999;font-size:13px;max-width:90vw;text-align:center;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── LOADER / EMPTY ── */
+.loader{padding:48px;text-align:center;color:var(--ink3);font-size:13px}
+.empty{padding:40px;text-align:center;color:var(--ink3);font-size:13px;border:1px dashed var(--border);border-radius:var(--radius);margin:8px 0}
+
+/* ── BREADCRUMB ── */
+.crumbs{display:flex;align-items:center;gap:4px;margin-bottom:20px;flex-wrap:wrap}
+.crumb{font-size:12px;color:var(--ink3);padding:3px 8px;border-radius:6px}
+.crumb.link{cursor:pointer;color:var(--ink2);text-decoration:underline;text-underline-offset:2px}
+.crumb.link:hover{color:var(--green)}
+.crumb.current{color:var(--ink);font-weight:700;background:var(--surface2)}
+.crumb-sep{color:var(--border2)}
+
+@media(max-width:640px){
+  .ep-grid{grid-template-columns:1fr}
+  .ep-full{grid-column:1}
+  .stat-strip{gap:6px}
+  .gantt-wrap{display:none}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="topbar-logo">⬡ 308</div>
+  <div class="topbar-sep"></div>
+  <div class="topbar-title">企劃任務牆</div>
+  <div class="topbar-right">
+    <span id="topMember" style="font-size:12px;color:var(--ink2)"></span>
+  </div>
+</div>
+
+<div class="wrap">
+  <div id="crumbs" class="crumbs"></div>
+
+  <!-- 選小隊 -->
+  <div id="sceneTeam" class="scene">
+    <div class="scene-title">選擇小隊</div>
+    <div id="teamGrid" class="team-grid"><div class="loader">載入中…</div></div>
+  </div>
+
+  <!-- 選成員 -->
+  <div id="sceneMember" class="scene" style="display:none">
+    <div class="scene-title">選擇成員</div>
+    <div id="memberGrid" class="member-grid"><div class="loader">載入中…</div></div>
+    <div id="memberOverview"></div>
+  </div>
+
+  <!-- 任務牆 -->
+  <div id="sceneTask" class="scene" style="display:none">
+    <div id="statStrip" class="stat-strip"></div>
+    <div id="ganttWrap" class="gantt-wrap" style="display:none">
+      <div class="gantt-head"><span class="gantt-head-title">📅 兩週甘特</span></div>
+      <div class="gantt-scroll"><table id="ganttTable" class="gantt-table"></table></div>
+    </div>
+    <div class="filter-bar">
+      <button class="filter-btn active" data-brand="all" onclick="setBrandFilter(this,'all')">全部品牌</button>
+      <span id="brandFilters"></span>
+      <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap" id="typeFilters">
+        <button class="filter-btn active" data-type="all" onclick="setTypeFilter(this,'all')">全部</button>
+        <button class="filter-btn" data-type="video" onclick="setTypeFilter(this,'video')">🎬 影音</button>
+        <button class="filter-btn" data-type="thread" onclick="setTypeFilter(this,'thread')">🧵 脆</button>
+      </span>
+      <input class="filter-search" type="text" placeholder="搜尋品牌/商品…" oninput="setSearch(this.value)"/>
+    </div>
+    <div id="taskWall"></div>
+  </div>
+</div>
+
+<div id="lightbox" class="lightbox" onclick="closeLB()"><img id="lbImg" alt=""/></div>
+<div id="toast" class="toast"></div>
+
+<script>
+// ─── 設定 ──────────────────────────────────────────────────
+const GAS_URL = 'https://script.google.com/macros/s/YOUR_NEW_DEPLOYMENT_ID/exec';
+// ↑ 換成新 GAS 部署網址
+
+// ─── 狀態 ──────────────────────────────────────────────────
+const S = {
+  team:'', member:'',
+  tasks:{ video:[], thread:[] },
+  filter:{ brand:'all', type:'all', search:'' },
+};
+
+const VIDEO_PERSONAS = [
+  '分享愛用好物','分享日常生活好物','分享保養品美妝好物','分享健康保健食品','分享美食跑咖'
+];
+const THREAD_PERSONAS = [
+  '女 02年 追星女 分享愛用','女 01年 社畜 分享愛用小物','女 美妝保養','女 分享愛用物',
+  '女 追韓娛 分享愛用','女 99年 追韓娛 分享愛用','男 26 想賺錢的社畜 發過投顧',
+  '已婚女性 年輕媽媽 無子','已婚男性 年輕爸爸 無子','有女友 30歲 幽默老闆',
+  '有男友 35歲 女強人','已婚女性 兩寶媽媽','已婚女性 一寶爸爸','單身狗 狗'
+];
+const STATUS_OPTS  = ['客戶尚未確認','客戶已回需修改','修改完成，需確認','確認完畢'];
+const VSTATUS_OPTS = ['影片需確認','需修改','修改稿需確認','確認完畢'];
+
+// ─── API ───────────────────────────────────────────────────
+async function api(action, params={}) {
+  const url = new URL(GAS_URL);
+  url.searchParams.set('action', action);
+  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v ?? ''));
+  const r = await fetch(url.toString());
+  const d = await r.json();
+  if (d.ok === false) throw new Error(d.error || 'API error');
+  return d;
+}
+async function apiPost(body) {
+  const r = await fetch(GAS_URL, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  const d = await r.json();
+  if (d.ok === false) throw new Error(d.error || 'API error');
+  return d;
+}
+
+// ─── 狀態計算 ──────────────────────────────────────────────
+function taskStatus(t, type) {
+  const s  = t.status || '';
+  const vs = t.videoStatus || '';
+  const due = parseDateTW(t.dueDate);
+  const now = new Date(); now.setHours(0,0,0,0);
+  const isOverdue = due && due < now;
+
+  if (type === 'thread') {
+    if (s === '確認完畢') return { key:'done', label:'確認完畢', cls:'done' };
+    if (s === '客戶已回需修改') return { key:'modify', label:'腳本待修改', cls:'modify' };
+    if (s === '客戶尚未確認' || s === '修改完成，需確認') return { key:'confirm', label:'客戶確認中', cls:'confirm' };
+    // 空白 = 進行中
+    if (isOverdue) return { key:'overdue', label:'已逾期', cls:'overdue' };
+    return { key:'active', label:'進行中', cls:'active' };
+  } else {
+    if (s === '確認完畢') {
+      if (vs === '確認完畢') return { key:'done', label:'全部完成', cls:'done' };
+      if (vs === '需修改') return { key:'modify', label:'影片待修改', cls:'modify' };
+      if (vs === '影片需確認' || vs === '修改稿需確認') return { key:'confirm', label:'影片確認中', cls:'confirm' };
+      // 腳本OK，影片製作中
+      return { key:'making', label:'影片製作中', cls:'making' };
+    }
+    if (s === '客戶已回需修改') return { key:'modify', label:'腳本待修改', cls:'modify' };
+    if (s === '客戶尚未確認' || s === '修改完成，需確認') return { key:'confirm', label:'客戶確認中', cls:'confirm' };
+    if (isOverdue) return { key:'overdue', label:'已逾期', cls:'overdue' };
+    return { key:'active', label:'進行中', cls:'active' };
+  }
+}
+
+function parseDateTW(str) {
+  if (!str) return null;
+  // 支援 2026/5/1 或 2026-05-01
+  const m = str.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (!m) return null;
+  return new Date(+m[1], +m[2]-1, +m[3]);
+}
+
+// ─── 初始化 ────────────────────────────────────────────────
+async function init() {
+  const qs = new URLSearchParams(location.search);
+  S.team   = qs.get('team') || '';
+  S.member = qs.get('member') || '';
+  updateCrumbs();
+
+  if (!S.team) { loadTeams(); return; }
+  if (!S.member) { loadMembers(S.team); return; }
+  loadTasks(S.member);
+}
+
+// ─── 小隊 ──────────────────────────────────────────────────
+async function loadTeams() {
+  show('sceneTeam');
+  try {
+    const d = await api('teams');
+    const icons = ['🦁','🐉','🦅','🌊','⚡','🌙','🔥','🌿'];
+    g('teamGrid').innerHTML = (d.teams||[]).map((t,i) => `
+      <div class="team-card" onclick="chooseTeam('${esc(t)}')">
+        <div class="tc-icon">${icons[i%icons.length]}</div>
+        <div class="tc-name">${html(t)}</div>
+        <div class="tc-sub">點擊選擇成員</div>
+      </div>`).join('') || '<div class="empty">沒有小隊資料</div>';
+  } catch(e) { g('teamGrid').innerHTML=`<div class="empty">載入失敗：${html(e.message)}</div>`; }
+}
+function chooseTeam(team) {
+  S.team = team;
+  history.pushState(null,'',`?team=${encodeURIComponent(team)}`);
+  loadMembers(team);
+}
+
+// ─── 成員 ──────────────────────────────────────────────────
+async function loadMembers(team) {
+  show('sceneMember');
+  g('memberGrid').innerHTML = '<div class="loader">載入中…</div>';
+  try {
+    const d = await api('members',{team});
+    g('memberGrid').innerHTML = (d.members||[]).map(m => `
+      <button class="member-btn" onclick="chooseMember('${esc(m)}')">${html(m)}</button>`
+    ).join('') || '<div class="empty">沒有組員</div>';
+  } catch(e) { g('memberGrid').innerHTML=`<div class="empty">載入失敗：${html(e.message)}</div>`; }
+}
+function chooseMember(member) {
+  S.member = member;
+  history.pushState(null,'',`?team=${encodeURIComponent(S.team)}&member=${encodeURIComponent(member)}`);
+  loadTasks(member);
+}
+
+// ─── 任務 ──────────────────────────────────────────────────
+async function loadTasks(member) {
+  show('sceneTask');
+  g('topMember').textContent = member;
+  g('taskWall').innerHTML = '<div class="loader">載入任務中…</div>';
+  try {
+    const d = await api('tasks',{member});
+    S.tasks = d;
+    renderAll();
+  } catch(e) { g('taskWall').innerHTML=`<div class="empty">載入失敗：${html(e.message)}</div>`; }
+}
+
+// ─── 渲染全部 ──────────────────────────────────────────────
+function renderAll() {
+  renderStats();
+  renderGantt();
+  renderBrandFilters();
+  renderTasks();
+}
+
+// ─── 統計 ──────────────────────────────────────────────────
+function renderStats() {
+  const all = [...S.tasks.video.map(t=>({t,type:'video'})), ...S.tasks.thread.map(t=>({t,type:'thread'}))];
+  const counts = {overdue:0,modify:0,active:0,confirm:0,making:0,done:0};
+  all.forEach(({t,type})=>{ const s=taskStatus(t,type); counts[s.key]=(counts[s.key]||0)+1; });
+  g('statStrip').innerHTML = [
+    {key:'overdue',label:'已逾期',cls:'overdue'},
+    {key:'modify',label:'待修改',cls:'modify'},
+    {key:'active',label:'進行中',cls:'active'},
+    {key:'confirm',label:'客戶確認中',cls:'confirm'},
+    {key:'making',label:'影片製作中',cls:'making'},
+    {key:'done',label:'完成',cls:'done'},
+  ].map(({key,label,cls})=>
+    `<div class="stat-pill ${cls}"><span class="sp-num">${counts[key]||0}</span><span>${label}</span></div>`
+  ).join('');
+}
+
+// ─── 甘特 ──────────────────────────────────────────────────
+function renderGantt() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days  = [];
+  for (let i=-7; i<=14; i++) {
+    const d = new Date(today); d.setDate(d.getDate()+i);
+    days.push(d);
+  }
+
+  const all = [
+    ...S.tasks.video.map(t=>({t,type:'video'})),
+    ...S.tasks.thread.map(t=>({t,type:'thread'}))
+  ].filter(({t,type})=> taskStatus(t,type).key !== 'done');
+
+  if (!all.length) { g('ganttWrap').style.display='none'; return; }
+  g('ganttWrap').style.display='';
+
+  const ths = `<tr><th style="text-align:left;padding-left:12px">任務</th>${
+    days.map(d => {
+      const isToday = d.getTime()===today.getTime();
+      const label = `${d.getMonth()+1}/${d.getDate()}`;
+      const dow = ['日','一','二','三','四','五','六'][d.getDay()];
+      return `<th class="${isToday?'today-col':''}">${label}<br><span style="font-weight:400;opacity:.6">${dow}</span></th>`;
+    }).join('')}</tr>`;
+
+  const trs = all.slice(0,20).map(({t,type})=>{
+    const due = parseDateTW(t.dueDate);
+    const st  = taskStatus(t,type);
+    const label = `${t.brand||''} ${t.product||''}`.trim();
+    const cells = days.map(d=>{
+      if (!due) return '<td></td>';
+      const diff = (due.getTime()-d.getTime())/86400000;
+      // 顯示 due date 那格 bar
+      if (Math.abs(diff)<0.5) {
+        const cls = st.key==='overdue'?'gbar-overdue':st.key==='done'?'gbar-done':type==='video'?'gbar-video':'gbar-thread';
+        return `<td><div class="gantt-bar ${cls}" title="${html(label)}">${html(t.taskId.slice(-6))}</div></td>`;
+      }
+      return '<td></td>';
+    }).join('');
+    return `<tr><td class="row-label" title="${html(label)}">${html(label)}</td>${cells}</tr>`;
+  }).join('');
+
+  g('ganttTable').innerHTML = `<thead>${ths}</thead><tbody>${trs}</tbody>`;
+}
+
+// ─── 品牌篩選 ──────────────────────────────────────────────
+function renderBrandFilters() {
+  const brands = new Set([
+    ...S.tasks.video.map(t=>t.brand),
+    ...S.tasks.thread.map(t=>t.brand)
+  ].filter(Boolean));
+  g('brandFilters').innerHTML = Array.from(brands).map(b=>
+    `<button class="filter-btn" data-brand="${esc(b)}" onclick="setBrandFilter(this,'${esc(b)}')">${html(b)}</button>`
+  ).join('');
+}
+function setBrandFilter(el, val) {
+  S.filter.brand = val;
+  document.querySelectorAll('[data-brand]').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderTasks();
+}
+function setTypeFilter(el, val) {
+  S.filter.type = val;
+  document.querySelectorAll('[data-type]').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  renderTasks();
+}
+function setSearch(v) { S.filter.search=v; renderTasks(); }
+
+// ─── 任務列表 ──────────────────────────────────────────────
+const SORT_ORDER = {overdue:0,modify:1,active:2,confirm:3,making:4,done:99};
+function filterTask(t,type) {
+  if (S.filter.brand !== 'all' && t.brand !== S.filter.brand) return false;
+  if (S.filter.type  !== 'all' && S.filter.type !== type)     return false;
+  if (S.filter.search) {
+    const q = S.filter.search.toLowerCase();
+    if (!(t.brand||'').toLowerCase().includes(q) && !(t.product||'').toLowerCase().includes(q)) return false;
+  }
+  return true;
+}
+
+function renderTasks() {
+  let vTasks = S.tasks.video.filter(t=>filterTask(t,'video'));
+  let tTasks = S.tasks.thread.filter(t=>filterTask(t,'thread'));
+
+  // 排序：完成的排最後
+  const sort = (arr, type) => arr.slice().sort((a,b)=>{
+    const sa = SORT_ORDER[taskStatus(a,type).key]??5;
+    const sb = SORT_ORDER[taskStatus(b,type).key]??5;
+    return sa-sb;
+  });
+  vTasks = sort(vTasks,'video');
+  tTasks = sort(tTasks,'thread');
+
+  // 過濾掉完成的（只計數）
+  const vActive = vTasks.filter(t=>taskStatus(t,'video').key!=='done');
+  const tActive = tTasks.filter(t=>taskStatus(t,'thread').key!=='done');
+
+  let out = '';
+  const sf = S.filter.type;
+  if (sf==='all'||sf==='video') {
+    out += `<div class="section-hdr video-hdr">🎬 影音企劃 <span style="font-size:10px;font-weight:400">${vActive.length} 個任務</span></div>`;
+    out += vActive.length ? vActive.map(t=>taskRowHTML(t,'video')).join('') : '<div class="empty">無影音任務</div>';
+  }
+  if (sf==='all'||sf==='thread') {
+    out += `<div class="section-hdr thread-hdr">🧵 脆企劃 <span style="font-size:10px;font-weight:400">${tActive.length} 個任務</span></div>`;
+    out += tActive.length ? tActive.map(t=>taskRowHTML(t,'thread')).join('') : '<div class="empty">無脆任務</div>';
+  }
+  g('taskWall').innerHTML = out || '<div class="empty">沒有符合條件的任務</div>';
+}
+
+function taskRowHTML(t, type) {
+  const st = taskStatus(t, type);
+  const isDone = st.key==='done';
+  const rowCls = isDone?'':'task-row '+st.key;
+  const id = 'tr_'+esc(t.taskId)+'_'+type;
+  return `<div class="task-row ${st.key}" id="${id}">
+    <div class="task-head" onclick="toggleTask('${id}','${esc(t.taskId)}','${type}')">
+      <span class="task-id">${html(t.taskId)}</span>
+      <span class="task-brand">${html(t.brand||'')}</span>
+      <span class="task-product">${html(t.product||'')}</span>
+      ${t.persona?`<span class="task-persona">${html(t.persona)}</span>`:''}
+      <span class="badge ${st.cls}">${st.label}</span>
+      <span class="task-due">${html(t.dueDate||'')}</span>
+      <span class="task-chevron">›</span>
+    </div>
+    <div class="edit-panel" id="ep_${id}">
+      <div class="loader" id="ep_loader_${id}">載入詳情中…</div>
+    </div>
+  </div>`;
+}
+
+// ─── 展開 / 收合 ───────────────────────────────────────────
+const _openPanels = {};
+async function toggleTask(rowId, taskId, type) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  const isOpen = row.classList.contains('open');
+  // 先收合同類型的其他
+  // （可選：允許多開，這裡允許多開）
+  row.classList.toggle('open');
+  if (!isOpen && !_openPanels[rowId]) {
+    _openPanels[rowId] = true;
+    await loadEditPanel(rowId, taskId, type);
+  }
+}
+
+async function loadEditPanel(rowId, taskId, type) {
+  const ep = document.getElementById('ep_'+rowId);
+  if (!ep) return;
+  try {
+    const [detail, taskRow] = await Promise.all([
+      api('taskDetail', {taskId, type}),
+      Promise.resolve(type==='video'
+        ? S.tasks.video.find(t=>t.taskId===taskId)
+        : S.tasks.thread.find(t=>t.taskId===taskId)
+      )
+    ]);
+    const t = detail.task || {};
+    // 合併 plannerRow（給顯示）
+    const merged = Object.assign({}, taskRow||{}, t);
+    // 取商品摘要
+    let prodInfo = null;
+    try { prodInfo = await api('productInfo',{brand:merged.brand||'',product:merged.product||''}); } catch(e){}
+
+    ep.innerHTML = buildEditPanel(rowId, taskId, type, merged, prodInfo);
+  } catch(e) {
+    ep.innerHTML = `<div class="empty">載入失敗：${html(e.message)}</div>`;
+  }
+}
+
+function buildEditPanel(rowId, taskId, type, t, prodInfo) {
+  const isVideo = type==='video';
+  const personas = isVideo ? VIDEO_PERSONAS : THREAD_PERSONAS;
+  const sheetName = t.sheetName || '';
+
+  // helper
+  const sel = (id, opts, val) =>
+    `<select id="${id}">${opts.map(o=>`<option${o===val?' selected':''}>${html(o)}</option>`).join('')}</select>`;
+  const ta = (id, val, ph='') =>
+    `<textarea id="${id}" placeholder="${ph}">${html(val||'')}</textarea>`;
+  const linkField = (id, url, label) =>
+    `<div class="link-field-wrap"><input type="text" id="${id}" value="${html(url||'')}" placeholder="貼上 Google Drive 連結"/></div>`
+    +(url?`<div class="link-preview"><a href="${html(url)}" target="_blank">▶ ${html(label||url.slice(0,40))}</a></div>`:'');
+
+  let html_out = `<div class="edit-inner"><div class="ep-grid">`;
+
+  // 狀態
+  html_out += `<div>
+    <div class="field-label">狀態</div>
+    ${sel('ep_status_'+rowId, STATUS_OPTS, t['狀態']||t.status||'')}
+  </div>`;
+
+  // 人設
+  html_out += `<div>
+    <div class="field-label">人設</div>
+    ${sel('ep_persona_'+rowId, personas, t['人設']||t.persona||'')}
+  </div>`;
+
+  // 腳本內容
+  html_out += `<div class="ep-full">
+    <div class="field-label">腳本內容</div>
+    ${ta('ep_content_'+rowId, t['腳本內容']||t.scriptContent||'')}
+  </div>`;
+
+  if (isVideo) {
+    // 畫面
+    html_out += `<div class="ep-full">
+      <div class="field-label">畫面說明</div>
+      ${ta('ep_img_'+rowId, t['畫面']||'')}
+    </div>`;
+
+    // 客戶回饋（唯讀）
+    if (t['客戶回饋']||t.clientFeedback) {
+      html_out += `<div class="ep-full">
+        <div class="field-label">客戶回饋</div>
+        <div class="field-value-box" style="border-color:var(--yellow-dim);color:var(--yellow)">${html(t['客戶回饋']||t.clientFeedback)}</div>
+      </div>`;
+    }
+
+    // 影音分隔線
+    html_out += `<hr class="ep-divider"/><div class="ep-section-label">🎬 影片區</div>`;
+
+    html_out += `<div>
+      <div class="field-label">影片狀態</div>
+      ${sel('ep_vstatus_'+rowId, VSTATUS_OPTS, t['影片-狀態']||t.videoStatus||'')}
+    </div>`;
+
+    html_out += `<div>
+      <div class="field-label">影片回饋</div>
+      ${ta('ep_vfeedback_'+rowId, t['影片-回饋']||t.videoFeedback||'','可空白')}
+    </div>`;
+
+    html_out += `<div class="ep-full">
+      <div class="field-label">影片連結（上傳新連結才會更新）</div>
+      ${linkField('ep_vlink_'+rowId, t['影片連結']||'','開啟影片')}
+    </div>`;
+
+  } else {
+    // 脆：圖片
+    ['圖片1','圖片2','圖片3'].forEach((f,i)=>{
+      html_out += `<div>
+        <div class="field-label">${f}</div>
+        ${linkField('ep_img'+(i+1)+'_'+rowId, t[f]||'', f)}
+        ${t[f]&&t[f].includes('thumbnail')?`<br><img class="img-thumb" src="${html(t[f])}" onclick="openLB('${esc(t[f])}')" loading="lazy"/>`:''}
+      </div>`;
+    });
+
+    html_out += `<div class="ep-full">
+      <div class="field-label">留言</div>
+      ${ta('ep_comment_'+rowId, t['留言']||'')}
+    </div>`;
+
+    ['留言內圖片1','留言內圖片2'].forEach((f,i)=>{
+      html_out += `<div>
+        <div class="field-label">${f}</div>
+        ${linkField('ep_cimg'+(i+1)+'_'+rowId, t[f]||'', f)}
+      </div>`;
+    });
+
+    // 客戶回饋（唯讀）
+    if (t['客戶回饋']||t.clientFeedback) {
+      html_out += `<div class="ep-full">
+        <div class="field-label">客戶回饋</div>
+        <div class="field-value-box" style="border-color:var(--yellow-dim);color:var(--yellow)">${html(t['客戶回饋']||t.clientFeedback)}</div>
+      </div>`;
+    }
+  }
+
+  // 商品摘要
+  if (prodInfo && (prodInfo.info||prodInfo.notes)) {
+    html_out += `<div class="ep-full">
+      <div class="field-label">商品摘要</div>
+      <div class="product-summary">
+        ${prodInfo.info?`<strong>商品資訊</strong>${html(prodInfo.info)}`:''}
+        ${prodInfo.notes?`<strong style="margin-top:8px">注意事項</strong>${html(prodInfo.notes)}`:''}
+      </div>
+    </div>`;
+  }
+
+  html_out += `</div></div>`;
+
+  // 操作列
+  html_out += `<div class="edit-actions">
+    <button class="btn btn-save" id="ep_savebtn_${rowId}" onclick="saveTask('${rowId}','${esc(taskId)}','${type}','${esc(sheetName)}')">💾 儲存送出</button>
+    <button class="btn btn-cancel" onclick="toggleTask('${rowId}','${esc(taskId)}','${type}')">收合</button>
+    <span class="saving-msg" id="ep_msg_${rowId}"></span>
+  </div>`;
+
+  return html_out;
+}
+
+// ─── 儲存 ──────────────────────────────────────────────────
+async function saveTask(rowId, taskId, type, sheetName) {
+  const btn = document.getElementById('ep_savebtn_'+rowId);
+  const msg = document.getElementById('ep_msg_'+rowId);
+  if (!btn) return;
+  btn.disabled=true; btn.textContent='儲存中…';
+
+  const isVideo = type==='video';
+  const fields = {};
+  const linkFields = {};
+
+  function gv(id) { const el=document.getElementById(id); return el?el.value:''; }
+
+  fields['狀態']    = gv('ep_status_'+rowId);
+  fields['人設']    = gv('ep_persona_'+rowId);
+  fields['腳本內容']= gv('ep_content_'+rowId);
+
+  if (isVideo) {
+    fields['畫面']     = gv('ep_img_'+rowId);
+    fields['影片-狀態'] = gv('ep_vstatus_'+rowId);
+    fields['影片-回饋'] = gv('ep_vfeedback_'+rowId);
+    const vlink = gv('ep_vlink_'+rowId).trim();
+    if (vlink) linkFields['影片連結'] = vlink;
+  } else {
+    fields['留言'] = gv('ep_comment_'+rowId);
+    ['圖片1','圖片2','圖片3'].forEach((f,i)=>{
+      const url = gv('ep_img'+(i+1)+'_'+rowId).trim();
+      if (url) linkFields[f] = url;
+    });
+    ['留言內圖片1','留言內圖片2'].forEach((f,i)=>{
+      const url = gv('ep_cimg'+(i+1)+'_'+rowId).trim();
+      if (url) linkFields[f] = url;
+    });
+  }
+
+  try {
+    await apiPost({
+      action:'save', taskId, type, sheetName,
+      fields: JSON.stringify(fields),
+      linkFields: JSON.stringify(linkFields)
+    });
+    toast('✅ 已儲存');
+    // 清除快取，下次展開重新抓
+    delete _openPanels['tr_'+taskId+'_'+type];
+    // 更新任務清單中的狀態（local）
+    const arr = isVideo ? S.tasks.video : S.tasks.thread;
+    const idx = arr.findIndex(t=>t.taskId===taskId);
+    if (idx!==-1) {
+      arr[idx].status = fields['狀態'] || arr[idx].status;
+      arr[idx].persona= fields['人設']  || arr[idx].persona;
+      if (isVideo) {
+        arr[idx].videoStatus = fields['影片-狀態'] || arr[idx].videoStatus;
+      }
+    }
+    renderStats();
+    renderTasks();
+  } catch(e) {
+    toast('⚠️ 儲存失敗：'+e.message);
+    btn.disabled=false; btn.textContent='💾 儲存送出';
+  }
+}
+
+// ─── UI Helpers ────────────────────────────────────────────
+function show(id) {
+  ['sceneTeam','sceneMember','sceneTask'].forEach(s=>{
+    const el=document.getElementById(s);
+    if(el) el.style.display=s===id?'':'none';
+  });
+  updateCrumbs();
+}
+function updateCrumbs() {
+  const parts=[];
+  if (S.team)   parts.push({label:'選小隊', fn:`goTeam()`});
+  if (S.team)   parts.push({label:S.team, fn:S.member?`goTeam()`:null});
+  if (S.member) parts.push({label:S.member, fn:null});
+  g('crumbs').innerHTML = [
+    {label:'任務牆',fn:S.team?`window.location='?'`:null},
+    ...parts
+  ].map((p,i,arr)=>{
+    const isCur = i===arr.length-1;
+    if(isCur) return `<span class="crumb current">${html(p.label)}</span>`;
+    if(p.fn) return `<span class="crumb link" onclick="${p.fn}">${html(p.label)}</span>`;
+    return `<span class="crumb">${html(p.label)}</span>`;
+  }).join('<span class="crumb-sep"> › </span>');
+}
+function goTeam() {
+  S.member='';
+  history.pushState(null,'',S.team?`?team=${encodeURIComponent(S.team)}`:'?');
+  loadMembers(S.team);
+}
+function g(id) { return document.getElementById(id); }
+function html(s) { return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function esc(s) { return String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function openLB(url) { g('lbImg').src=url; g('lightbox').classList.add('show'); }
+function closeLB()   { g('lightbox').classList.remove('show'); }
+function toast(msg) {
+  const el=g('toast'); el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),3000);
+}
+
+init();
+</script>
+</body>
+</html>
