@@ -40,7 +40,7 @@
   --shadow-lg:0 4px 24px rgba(44,36,22,.12);
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--ink);font-family:'Noto Sans TC',sans-serif;min-height:100vh;line-height:1.5}
+body{background:var(--bg);color:var(--ink);font-family:'Noto Sans TC',sans-serif;min-height:100vh;line-height:1.5;overflow-x:hidden}
 a{color:var(--blue);text-decoration:none}
 a:hover{text-decoration:underline}
 
@@ -52,7 +52,7 @@ a:hover{text-decoration:underline}
 .topbar-member{font-size:12px;color:var(--ink2);background:var(--surface2);border:1px solid var(--border);padding:4px 12px;border-radius:100px}
 
 /* ── WRAP ── */
-.wrap{max-width:1100px;margin:0 auto;padding:24px 20px}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 20px;width:100%;overflow-x:hidden}
 
 /* ── SCENE ── */
 .scene{animation:fadeIn .18s ease}
@@ -208,12 +208,36 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
 /* ── PANEL ── */
 .panel{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;box-shadow:var(--shadow)}
 
-@media(max-width:640px){
+@media(max-width:768px){
+  .wrap{padding:12px 10px}
   .ep-grid{grid-template-columns:1fr}
   .ep-full{grid-column:1}
-  .stat-strip{gap:6px}
+  .stat-strip{gap:5px}
+  .stat-pill{padding:7px 10px}
+  .stat-pill .sp-num{font-size:15px}
   .gantt-wrap{display:none}
-  .task-head{gap:4px}
+  .task-head{gap:4px;flex-wrap:wrap}
+  .task-id{max-width:120px;overflow:hidden;text-overflow:ellipsis}
+  .task-brand{font-size:11px}
+  .task-product{font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .task-persona,.task-feedback{display:none} /* 手機版bar不顯示，點開才看 */
+  .task-due{font-size:10px}
+  .edit-btn{padding:4px 9px;font-size:10px}
+  .team-grid{grid-template-columns:1fr 1fr}
+  .member-grid{gap:8px}
+  .member-btn{padding:8px 14px;font-size:12px}
+  .topbar{padding:0 14px}
+  .filter-bar{gap:6px}
+  .filter-search{width:100%;border-radius:8px;margin-top:4px}
+  .section-hdr{font-size:10px}
+  select,textarea,input[type=text]{font-size:16px} /* 防止 iOS 自動縮放 */
+  .edit-inner{padding:12px}
+  .edit-actions{padding:10px 12px}
+  .btn{padding:10px 16px;font-size:12px}
+}
+@media(max-width:400px){
+  .team-grid{grid-template-columns:1fr}
+  .stat-pill .sp-label{display:none}
 }
 </style>
 </head>
