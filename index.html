@@ -17,7 +17,7 @@
   --ink2:#6b5f4e;
   --ink3:#a8998a;
   --green:#2e7d52;
-  --green-dim:#d4ead e;
+  --green-dim:#d4eade;
   --green-bg:rgba(46,125,82,.1);
   --green-light:#e8f4ed;
   --yellow:#b36d00;
@@ -411,7 +411,8 @@ async function loadMembers(team) {
     g('memberGrid').innerHTML = members.map(m =>
       `<button class="member-btn" onclick="chooseMember('${esc(m)}')">${html(m)}</button>`
     ).join('') || '<div class="empty">沒有組員</div>';
-    renderTeamOverview(members, team);
+    g('teamOverview').innerHTML = '';
+// renderTeamOverview(members, team);
   } catch(e) {
     g('memberGrid').innerHTML = `<div class="empty">載入失敗：${html(e.message)}</div>`;
     g('teamOverview').innerHTML = '';
@@ -585,24 +586,27 @@ function renderTasks(){
 
 function taskRowHTML(t, type) {
   const st = taskStatus(t, type);
-  const id = 'tr_'+t.taskId.replace(/[^a-zA-Z0-9]/g,'_')+'_'+type;
+  const id = 'tr_' + t.taskId.replace(/[^a-zA-Z0-9]/g, '_') + '_' + type;
 
-  const personaText = t['人設'] || t.persona || '';
-  // ★ 回饋：影音優先影片回饋，脆用客戶回饋，取前40字
-  const feedbackRaw = (type==='video' && (t['影片-回饋']||t.videoFeedback))
-    ? (t['影片-回饋']||t.videoFeedback)
-    : (t['客戶回饋']||t.clientFeedback||'');
-  const feedbackText = feedbackRaw.trim();
+  const personaText = t.persona || t['人設'] || '';
+  const clientFeedback = t.clientFeedback || t['客戶回饋'] || '';
+  const videoFeedback = t.videoFeedback || t['影片-回饋'] || '';
+
+  const feedbackRaw = type === 'video'
+    ? (videoFeedback || clientFeedback)
+    : clientFeedback;
+
+  const feedbackText = String(feedbackRaw || '').trim();
 
   return `<div class="task-row ${st.key}" id="${id}">
     <div class="task-head">
       <span class="task-id" title="${html(t.taskId)}" style="user-select:text;cursor:text;font-size:9px;flex-shrink:0">${html(t.taskId)}</span>
-      <span class="task-brand">${html(t.brand||'')}</span>
-      <span class="task-product">${html(t.product||'')}</span>
-      ${personaText?`<span class="task-persona">👤 ${html(personaText)}</span>`:''}
-      ${feedbackText?`<span class="task-feedback" title="${html(feedbackText)}">💬 ${html(feedbackText.slice(0,40))}</span>`:''}
+      <span class="task-brand">${html(t.brand || t['品牌'] || '')}</span>
+      <span class="task-product">${html(t.product || t['商品'] || '')}</span>
+      ${personaText ? `<span class="task-persona">👤 ${html(personaText)}</span>` : ''}
+      ${feedbackText ? `<span class="task-feedback" title="${html(feedbackText)}">💬 ${html(feedbackText.slice(0, 40))}</span>` : ''}
       <span class="badge ${st.cls}">${st.label}</span>
-      <span class="task-due">${html(t.dueDate||'')}</span>
+      <span class="task-due">${html(t.dueDate || t['完成日期'] || '')}</span>
       <button class="edit-btn" onclick="toggleEdit('${id}','${esc(t.taskId)}','${type}')" title="編輯">✏️ 編輯</button>
     </div>
     <div class="edit-panel" id="ep_${id}">
@@ -618,38 +622,35 @@ const _openPanels = {};
 async function toggleEdit(rowId, taskId, type) {
   const row = document.getElementById(rowId);
   if (!row) return;
+
   const isOpen = row.classList.contains('open');
+
   if (isOpen) {
     row.classList.remove('open');
     return;
   }
+
   row.classList.add('open');
+
   if (!_openPanels[rowId]) {
     _openPanels[rowId] = true;
-    await loadEditPanel(rowId, taskId, type);
+    loadEditPanel(rowId, taskId, type);
   }
 }
 // 保留 toggleTask 相容舊呼叫
 function toggleTask(rowId, taskId, type) { return toggleEdit(rowId, taskId, type); }
 
 async function loadEditPanel(rowId, taskId, type) {
-  const ep = document.getElementById('ep_'+rowId);
+  const ep = document.getElementById('ep_' + rowId);
   if (!ep) return;
-  try {
-    // ★ tasks 已從客戶表帶完整資料，直接用，不打 taskDetail
-    const t = (type==='video'
-      ? S.tasks.video.find(x=>x.taskId===taskId)
-      : S.tasks.thread.find(x=>x.taskId===taskId)) || {};
 
-    // 只打 productInfo（較輕量）
-    const brand   = t.brand   || '';
-    const product = t.product || '';
-    let prodInfo = null;
-    if (brand && product) {
-      prodInfo = await api('productInfo',{brand,product}).catch(()=>null);
-    }
-    ep.innerHTML = buildEditPanel(rowId, taskId, type, t, prodInfo);
-  } catch(e) {
+  try {
+    const t = (type === 'video'
+      ? S.tasks.video.find(x => x.taskId === taskId)
+      : S.tasks.thread.find(x => x.taskId === taskId)) || {};
+
+    ep.innerHTML = buildEditPanel(rowId, taskId, type, t, null);
+  } catch (e) {
     ep.innerHTML = `<div class="empty">載入失敗：${html(e.message)}</div>`;
   }
 }
@@ -658,6 +659,20 @@ function buildEditPanel(rowId, taskId, type, t, prodInfo) {
   const isVideo = type==='video';
   const personas = isVideo ? VIDEO_PERSONAS : THREAD_PERSONAS;
   const sheetName = t.sheetName || '';
+  const statusVal = t.status || t['狀態'] || '';
+  const personaVal = t.persona || t['人設'] || '';
+  const contentVal = t.scriptContent || t['腳本內容'] || '';
+  const clientFeedbackVal = t.clientFeedback || t['客戶回饋'] || '';
+
+  const image1Val = t.image1 || t['圖片1'] || '';
+  const image2Val = t.image2 || t['圖片2'] || '';
+  const image3Val = t.image3 || t['圖片3'] || '';
+  const commentVal = t.comment || t['留言'] || '';
+  const commentImgVal = t.commentImg || t['留言內圖片'] || t['留言內圖片1'] || '';
+
+  const videoLinkVal = t.videoLink || t['影片連結'] || '';
+  const videoStatusVal = t.videoStatus || t['影片-狀態'] || '';
+  const videoFeedbackVal = t.videoFeedback || t['影片-回饋'] || '';
 
   const sel = (id, opts, val) =>
     `<select id="${id}">${opts.map(o=>`<option value="${html(o)}"${o===val?' selected':''}>${o?html(o):'— 不選 —'}</option>`).join('')}</select>`;
@@ -669,21 +684,22 @@ function buildEditPanel(rowId, taskId, type, t, prodInfo) {
 
   let out = `<div class="edit-inner"><div class="ep-grid">`;
 
-  out += `<div><div class="field-label">狀態</div>${sel('ep_status_'+rowId, STATUS_OPTS, t['狀態']||t.status||'')}</div>`;
-  out += `<div><div class="field-label">人設</div>${sel('ep_persona_'+rowId, personas, t['人設']||t.persona||'')}</div>`;
-  out += `<div class="ep-full"><div class="field-label">腳本內容</div>${ta('ep_content_'+rowId, t['腳本內容']||t.scriptContent||'')}</div>`;
+    out += `<div><div class="field-label">狀態</div>${sel('ep_status_'+rowId, STATUS_OPTS, statusVal)}</div>`;
+    out += `<div><div class="field-label">人設</div>${sel('ep_persona_'+rowId, personas, personaVal)}</div>`;
+    out += `<div class="ep-full"><div class="field-label">腳本內容</div>${ta('ep_content_'+rowId, contentVal)}</div>`;
 
   if (isVideo) {
     out += `<div class="ep-full"><div class="field-label">畫面說明</div>${ta('ep_img_'+rowId, t['畫面']||'')}</div>`;
-    out += `<div class="ep-full"><div class="field-label">客戶回饋</div>${ta('ep_cfeedback_'+rowId, t['客戶回饋']||t.clientFeedback||'')}  </div>`;
+    out += `<div class="ep-full"><div class="field-label">客戶回饋</div>${ta('ep_cfeedback_'+rowId, clientFeedbackVal)}</div>`;
     out += `<hr class="ep-divider"/><div class="ep-section-label">🎬 影片區</div>`;
-    out += `<div><div class="field-label">影片狀態</div>${sel('ep_vstatus_'+rowId, VSTATUS_OPTS, t['影片-狀態']||t.videoStatus||'')}</div>`;
-    out += `<div><div class="field-label">影片回饋</div>${ta('ep_vfeedback_'+rowId, t['影片-回饋']||t.videoFeedback||'','可空白')}</div>`;
-    out += `<div class="ep-full"><div class="field-label">影片連結（空白不覆蓋）</div>${linkField('ep_vlink_'+rowId, t['影片連結']||'','影片')}</div>`;
+    out += `<div><div class="field-label">影片狀態</div>${sel('ep_vstatus_'+rowId, VSTATUS_OPTS, videoStatusVal)}</div>`;
+    out += `<div><div class="field-label">影片回饋</div>${ta('ep_vfeedback_'+rowId, videoFeedbackVal, '可空白')}</div>`;
+    out += `<div class="ep-full"><div class="field-label">影片連結（空白不覆蓋）</div>${linkField('ep_vlink_'+rowId, videoLinkVal, '影片')}</div>`;
   } else {
     ['圖片1','圖片2','圖片3'].forEach((f,i)=>{
       // 只有真實 URL 才顯示連結，純文字（如"圖片1"）表示 HYPERLINK 顯示名稱，不是真實連結
-      const rawVal = t[f]||'';
+      const imgMap = { '圖片1': image1Val, '圖片2': image2Val, '圖片3': image3Val };
+      const rawVal = imgMap[f] || ''
       const isRealUrl = rawVal.startsWith('http');
       const displayUrl = isRealUrl ? rawVal : '';
       const hasLink = isRealUrl || (rawVal && !rawVal.startsWith('http'));
@@ -692,11 +708,10 @@ function buildEditPanel(rowId, taskId, type, t, prodInfo) {
         ${isRealUrl&&rawVal.includes('thumbnail')?`<br><img class="img-thumb" src="${html(rawVal)}" onclick="openLB('${esc(rawVal)}')" loading="lazy"/>`:''}
       </div>`;
     });
-    out += `<div class="ep-full"><div class="field-label">留言</div>${ta('ep_comment_'+rowId, t['留言']||'')}</div>`;
+    out += `<div class="ep-full"><div class="field-label">留言</div>${ta('ep_comment_'+rowId, commentVal)}</div>`;
     // 留言內圖片：只顯示1欄（表頭只有1個）
-    const cimgKey = t['留言內圖片1'] !== undefined ? '留言內圖片1' : '留言內圖片';
-    out += `<div class="ep-full"><div class="field-label">留言內圖片</div>${linkField('ep_cimg1_'+rowId, t[cimgKey]||'', '留言內圖片')}</div>`;
-    out += `<div class="ep-full"><div class="field-label">客戶回饋</div>${ta('ep_cfeedback_'+rowId, t['客戶回饋']||t.clientFeedback||'')}  </div>`;
+    out += `<div class="ep-full"><div class="field-label">留言內圖片</div>${linkField('ep_cimg1_'+rowId, commentImgVal, '留言內圖片')}</div>`;
+    out += `<div class="ep-full"><div class="field-label">客戶回饋</div>${ta('ep_cfeedback_'+rowId, clientFeedbackVal)}</div>`;
   }
 
   if (prodInfo && (prodInfo.info||prodInfo.notes)) {
