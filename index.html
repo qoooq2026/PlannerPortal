@@ -681,7 +681,11 @@ function buildEditPanel(rowId, taskId, type, t, prodInfo) {
   const linkField = (id, url, label) =>
     `<div class="link-field-wrap"><input type="text" id="${id}" value="${html(url||'')}" placeholder="貼上連結（空白=不更新）"/></div>`
     +(url?`<div class="link-preview"><a href="${html(url)}" target="_blank">▶ 開啟${html(label)}</a></div>`:'');
-
+  const videoLinkField = (id, value) =>
+  `<textarea id="${id}" placeholder="可貼多個影片連結，一行一個；空白=不更新">${html(value || '')}</textarea>`
+  + splitUrls(value).map((url, index) =>
+    `<div class="link-preview"><a href="${html(url)}" target="_blank">▶ 開啟影片${index + 1}</a></div>`
+  ).join('');
   let out = `<div class="edit-inner"><div class="ep-grid">`;
 
     out += `<div><div class="field-label">狀態</div>${sel('ep_status_'+rowId, STATUS_OPTS, statusVal)}</div>`;
@@ -694,7 +698,7 @@ function buildEditPanel(rowId, taskId, type, t, prodInfo) {
     out += `<hr class="ep-divider"/><div class="ep-section-label">🎬 影片區</div>`;
     out += `<div><div class="field-label">影片狀態</div>${sel('ep_vstatus_'+rowId, VSTATUS_OPTS, videoStatusVal)}</div>`;
     out += `<div><div class="field-label">影片回饋</div>${ta('ep_vfeedback_'+rowId, videoFeedbackVal, '可空白')}</div>`;
-    out += `<div class="ep-full"><div class="field-label">影片連結（空白不覆蓋）</div>${linkField('ep_vlink_'+rowId, videoLinkVal, '影片')}</div>`;
+    out += `<div class="ep-full"><div class="field-label">影片連結（可多個，一行一個；空白不覆蓋）</div>${videoLinkField('ep_vlink_'+rowId, videoLinkVal)}</div>`;
   } else {
     ['圖片1','圖片2','圖片3'].forEach((f,i)=>{
       // 只有真實 URL 才顯示連結，純文字（如"圖片1"）表示 HYPERLINK 顯示名稱，不是真實連結
@@ -778,6 +782,7 @@ async function saveTask(rowId, taskId, type, sheetName) {
       if (statusVal) arr[idx].status = statusVal;
       if (personaVal) arr[idx].persona = personaVal;
       if (isVideo && fields['影片-狀態']) arr[idx].videoStatus = fields['影片-狀態'];
+      if (isVideo && vlink) arr[idx].videoLink = vlink;
     }
     renderStats(); renderTasks();
   } catch(e) {
@@ -900,7 +905,12 @@ async function renderTeamOverview(members, team) {
     g('teamOverview').innerHTML = `<div class="empty">進度載入失敗：${html(e.message)}</div>`;
   }
 }
-
+function splitUrls(value) {
+  return String(value || '')
+    .split(/[\n,，]+/)
+    .map(s => s.trim())
+    .filter(s => /^https?:\/\//i.test(s));
+}
 init();
 </script>
 </body>
