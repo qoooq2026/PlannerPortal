@@ -755,22 +755,31 @@ async function saveTask(rowId, taskId, type, sheetName) {
   const cfVal = gv('ep_cfeedback_'+rowId);
   if (cfVal !== undefined) fields['客戶回饋'] = cfVal;
 
-  if (isVideo) {
-    fields['畫面'] = gv('ep_img_'+rowId);
-    const vsVal = gv('ep_vstatus_'+rowId);
-    if (vsVal) fields['影片-狀態'] = vsVal;
-    fields['影片-回饋'] = gv('ep_vfeedback_'+rowId);
-    const vlink = gv('ep_vlink_'+rowId).trim();
-    if (vlink) linkFields['影片連結'] = vlink;
-  } else {
-    fields['留言'] = gv('ep_comment_'+rowId);
-    ['圖片1','圖片2','圖片3'].forEach((f,i)=>{ const u=gv('ep_img'+(i+1)+'_'+rowId).trim(); if(u)linkFields[f]=u; });
-    const cimgVal = gv('ep_cimg1_'+rowId).trim();
-    if (cimgVal) {
-      linkFields['留言內圖片1'] = cimgVal;
-      linkFields['留言內圖片'] = cimgVal; // 相容兩種表頭
-    }
+let vlink = '';
+
+if (isVideo) {
+  fields['畫面'] = gv('ep_img_'+rowId);
+
+  const vsVal = gv('ep_vstatus_'+rowId);
+  if (vsVal) fields['影片-狀態'] = vsVal;
+
+  fields['影片-回饋'] = gv('ep_vfeedback_'+rowId);
+
+  vlink = gv('ep_vlink_'+rowId).trim();
+  if (vlink) linkFields['影片連結'] = vlink;
+} else {
+  fields['留言'] = gv('ep_comment_'+rowId);
+  ['圖片1','圖片2','圖片3'].forEach((f,i)=>{
+    const u = gv('ep_img'+(i+1)+'_'+rowId).trim();
+    if (u) linkFields[f] = u;
+  });
+
+  const cimgVal = gv('ep_cimg1_'+rowId).trim();
+  if (cimgVal) {
+    linkFields['留言內圖片1'] = cimgVal;
+    linkFields['留言內圖片'] = cimgVal;
   }
+}
 
   try {
     await apiPost({ action:'save', taskId, type, sheetName, fields:JSON.stringify(fields), linkFields:JSON.stringify(linkFields) });
