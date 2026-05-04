@@ -791,7 +791,10 @@ if (isVideo) {
       if (statusVal) arr[idx].status = statusVal;
       if (personaVal) arr[idx].persona = personaVal;
       if (isVideo && fields['影片-狀態']) arr[idx].videoStatus = fields['影片-狀態'];
-      if (isVideo && vlink) arr[idx].videoLink = vlink;
+      if (isVideo) {
+  const latestVlink = gv('ep_vlink_'+rowId).trim();
+  if (latestVlink) arr[idx].videoLink = latestVlink;
+}
     }
     renderStats(); renderTasks();
   } catch(e) {
