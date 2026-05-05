@@ -632,10 +632,15 @@ async function toggleEdit(rowId, taskId, type) {
 
   row.classList.add('open');
 
-  if (!_openPanels[rowId]) {
-    _openPanels[rowId] = true;
-    loadEditPanel(rowId, taskId, type);
-  }
+const ep = document.getElementById('ep_' + rowId);
+const needsLoad =
+  !_openPanels[rowId] ||
+  (ep && ep.textContent.includes('載入詳情中'));
+
+if (needsLoad) {
+  _openPanels[rowId] = true;
+  loadEditPanel(rowId, taskId, type);
+}
 }
 // 保留 toggleTask 相容舊呼叫
 function toggleTask(rowId, taskId, type) { return toggleEdit(rowId, taskId, type); }
@@ -770,22 +775,31 @@ if (isVideo) {
   if (vlink) linkFields['影片連結'] = vlink;
 } else {
   fields['留言'] = gv('ep_comment_'+rowId);
-  ['圖片1','圖片2','圖片3'].forEach((f,i)=>{
-    const u = gv('ep_img'+(i+1)+'_'+rowId).trim();
-    if (u) linkFields[f] = u;
-  });
+['圖片1','圖片2','圖片3'].forEach((f,i)=>{
+  const u = gv('ep_img'+(i+1)+'_'+rowId).trim();
+  if (!u) return;
 
-  const cimgVal = gv('ep_cimg1_'+rowId).trim();
-  if (cimgVal) {
-    linkFields['留言內圖片1'] = cimgVal;
-    linkFields['留言內圖片'] = cimgVal;
+  if (isUrl(u)) {
+    linkFields[f] = u;
+  } else {
+    fields[f] = u;
   }
+});
+
+const cimgVal = gv('ep_cimg1_'+rowId).trim();
+if (cimgVal) {
+  if (isUrl(cimgVal)) {
+    linkFields['留言內圖片'] = cimgVal;
+  } else {
+    fields['留言內圖片'] = cimgVal;
+  }
+}
 }
 
   try {
     await apiPost({ action:'save', taskId, type, sheetName, fields:JSON.stringify(fields), linkFields:JSON.stringify(linkFields) });
     toast('✅ 已儲存');
-    delete _openPanels['tr_'+taskId.replace(/[^a-zA-Z0-9]/g,'_')+'_'+type];
+    Object.keys(_openPanels).forEach(k => delete _openPanels[k]);
     const arr = isVideo ? S.tasks.video : S.tasks.thread;
     const idx = arr.findIndex(t=>t.taskId===taskId);
     if (idx!==-1) {
@@ -927,6 +941,9 @@ function splitUrls(value) {
     .split(/[\n,，]+/)
     .map(s => s.trim())
     .filter(s => /^https?:\/\//i.test(s));
+}
+  function isUrl(value) {
+  return /^https?:\/\//i.test(String(value || '').trim());
 }
 init();
 </script>
