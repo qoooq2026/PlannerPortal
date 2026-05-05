@@ -335,7 +335,7 @@ function taskStatus(t, type) {
   // 優先用客戶表的狀態（'狀態' 欄），fallback 主控表的 status 欄
   const s  = t['狀態'] || t.status || '';
   const vs = t['影片-狀態'] || t.videoStatus || '';
-  const due = parseDateTW(t.dueDate);
+  const due = parseDateTW(t.dueDate || t['完成日期']);
   const now = new Date(); now.setHours(0,0,0,0);
   const isOverdue = due && due < now;
 
@@ -482,10 +482,23 @@ function renderGantt() {
   for (let i=-3; i<=13; i++) {
     const d = new Date(today); d.setDate(d.getDate()+i); days.push(d);
   }
-  const all = [
-    ...S.tasks.video.map(t=>({t,type:'video'})),
-    ...S.tasks.thread.map(t=>({t,type:'thread'}))
-  ].filter(({t,type})=>taskStatus(t,type).key!=='done');
+const all = [
+  ...S.tasks.video.map(t=>({t,type:'video'})),
+  ...S.tasks.thread.map(t=>({t,type:'thread'}))
+]
+.filter(({t,type})=>taskStatus(t,type).key!=='done')
+.filter(({t,type})=>filterTask(t,type))
+.sort((a,b)=>{
+  const da = parseDateTW(a.t.dueDate || a.t['完成日期']);
+  const db = parseDateTW(b.t.dueDate || b.t['完成日期']);
+
+  if (da && db) return da.getTime() - db.getTime();
+  if (da) return -1;
+  if (db) return 1;
+
+  return 0;
+});
+
 
   if (!all.length) { g('ganttWrap').style.display='none'; return; }
   g('ganttWrap').style.display='';
@@ -496,8 +509,8 @@ function renderGantt() {
       return `<th class="${isToday?'today-col':''}" style="min-width:28px">${d.getMonth()+1}/${d.getDate()}<br><span style="opacity:.6">${['日','一','二','三','四','五','六'][d.getDay()]}</span></th>`;
     }).join('')}</tr>`;
 
-  const trs = all.slice(0,15).map(({t,type})=>{
-    const due = parseDateTW(t.dueDate);
+  const trs = all.map(({t,type})=>{
+    const due = parseDateTW(t.dueDate || t['完成日期']);
     const st  = taskStatus(t,type);
     const label = `${t.brand||''} ${t.product||''}`.trim();
     const cells = days.map(d=>{
@@ -527,14 +540,24 @@ function renderBrandFilters() {
 function setBrandFilter(el,val){
   S.filter.brand=val;
   document.querySelectorAll('[data-brand]').forEach(b=>b.classList.remove('active'));
-  el.classList.add('active'); renderTasks();
+  el.classList.add('active');
+  renderGantt();
+  renderTasks();
 }
+
 function setTypeFilter(el,val){
   S.filter.type=val;
   document.querySelectorAll('[data-type]').forEach(b=>b.classList.remove('active'));
-  el.classList.add('active'); renderTasks();
+  el.classList.add('active');
+  renderGantt();
+  renderTasks();
 }
-function setSearch(v){S.filter.search=v;renderTasks();}
+
+function setSearch(v){
+  S.filter.search=v;
+  renderGantt();
+  renderTasks();
+}
 
 // ─── 任務列表 ──────────────────────────────────────────────
 const SORT_ORDER={overdue:0,modify:1,active:2,confirm:3,making:4,done:99};
@@ -552,7 +575,16 @@ function renderTasks(){
   const sort=(arr,type)=>arr.slice().sort((a,b)=>{
     const sa=SORT_ORDER[taskStatus(a,type).key]??5;
     const sb=SORT_ORDER[taskStatus(b,type).key]??5;
-    return sa-sb;
+    if (sa !== sb) return sa - sb;
+
+    const da = parseDateTW(a.dueDate || a['完成日期']);
+    const db = parseDateTW(b.dueDate || b['完成日期']);
+
+    if (da && db) return da.getTime() - db.getTime();
+    if (da) return -1;
+    if (db) return 1;
+
+    return 0;
   });
   const vSorted = sort(S.tasks.video.filter(t=>filterTask(t,'video')),'video');
   const tSorted = sort(S.tasks.thread.filter(t=>filterTask(t,'thread')),'thread');
@@ -810,15 +842,18 @@ if (cimgVal) {
       if (personaVal) arr[idx].persona = personaVal;
       if (isVideo && fields['影片-狀態']) arr[idx].videoStatus = fields['影片-狀態'];
       if (isVideo) {
-         arr[idx].screenDescription = fields['畫面'];
-         arr[idx].screenshot = fields['畫面'];
-         arr[idx]['畫面'] = fields['畫面'];
-  
+         if (Object.prototype.hasOwnProperty.call(fields, '畫面')) {
+             arr[idx].screenDescription = fields['畫面'];
+             arr[idx].screenshot = fields['畫面'];
+             arr[idx]['畫面'] = fields['畫面'];
+           }
          const latestVlink = gv('ep_vlink_'+rowId).trim();
         if (latestVlink) arr[idx].videoLink = latestVlink;
       }
     }
-    renderStats(); renderTasks();
+    renderStats();
+    renderGantt();
+    renderTasks();
   } catch(e) {
     toast('⚠️ 儲存失敗：'+e.message);
     btn.disabled=false; btn.textContent='💾 儲存送出';
@@ -914,7 +949,7 @@ async function renderTeamOverview(members, team) {
           return `<th class="${isToday?'today-col':''}" style="min-width:26px;font-size:9px">${d.getMonth()+1}/${d.getDate()}</th>`;
         }).join('')}</tr>`;
       const trs = activeTasks.map(({t,type,memberName})=>{
-        const due=parseDateTW(t.dueDate);
+        const due = parseDateTW(t.dueDate || t['完成日期']);
         const st=taskStatus(t,type);
         const label=`${t.brand||''} ${t.product||''}`.trim();
         const cells=days.map(d=>{
