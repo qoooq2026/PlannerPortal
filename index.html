@@ -693,7 +693,8 @@ function buildEditPanel(rowId, taskId, type, t, prodInfo) {
     out += `<div class="ep-full"><div class="field-label">腳本內容</div>${ta('ep_content_'+rowId, contentVal)}</div>`;
 
   if (isVideo) {
-    out += `<div class="ep-full"><div class="field-label">畫面說明</div>${ta('ep_img_'+rowId, t['畫面']||'')}</div>`;
+    const screenVal = t.screenDescription || t.screenshot || t['畫面'] || t['畫面說明'] || '';
+    out += `<div class="ep-full"><div class="field-label">畫面說明</div>${ta('ep_img_'+rowId, screenVal)}</div>`;
     out += `<div class="ep-full"><div class="field-label">客戶回饋</div>${ta('ep_cfeedback_'+rowId, clientFeedbackVal)}</div>`;
     out += `<hr class="ep-divider"/><div class="ep-section-label">🎬 影片區</div>`;
     out += `<div><div class="field-label">影片狀態</div>${sel('ep_vstatus_'+rowId, VSTATUS_OPTS, videoStatusVal)}</div>`;
@@ -792,9 +793,13 @@ if (isVideo) {
       if (personaVal) arr[idx].persona = personaVal;
       if (isVideo && fields['影片-狀態']) arr[idx].videoStatus = fields['影片-狀態'];
       if (isVideo) {
-  const latestVlink = gv('ep_vlink_'+rowId).trim();
-  if (latestVlink) arr[idx].videoLink = latestVlink;
-}
+         arr[idx].screenDescription = fields['畫面'];
+         arr[idx].screenshot = fields['畫面'];
+         arr[idx]['畫面'] = fields['畫面'];
+  
+         const latestVlink = gv('ep_vlink_'+rowId).trim();
+        if (latestVlink) arr[idx].videoLink = latestVlink;
+      }
     }
     renderStats(); renderTasks();
   } catch(e) {
