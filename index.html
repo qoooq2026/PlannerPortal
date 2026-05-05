@@ -332,7 +332,6 @@ async function apiPost(body) {
 
 // ─── 狀態計算 ──────────────────────────────────────────────
 function taskStatus(t, type) {
-  // 優先用客戶表的狀態（'狀態' 欄），fallback 主控表的 status 欄
   const s  = t['狀態'] || t.status || '';
   const vs = t['影片-狀態'] || t.videoStatus || '';
   const due = parseDateTW(t.dueDate || t['完成日期']);
@@ -340,27 +339,34 @@ function taskStatus(t, type) {
   const isOverdue = due && due < now;
 
   if (type === 'thread') {
-    if (s === '確認完畢')          return { key:'done',    label:'確認完畢',   cls:'done' };
-    if (s === '客戶已回需修改')    return { key:'modify',  label:'腳本待修改', cls:'modify' };
+    if (s === '確認完畢') return { key:'done', label:'確認完畢', cls:'done' };
+
+    if (isOverdue) return { key:'overdue', label:'已逾期', cls:'overdue' };
+
+    if (s === '客戶已回需修改') return { key:'modify', label:'腳本待修改', cls:'modify' };
     if (s === '客戶尚未確認' || s === '修改完成，需確認') return { key:'confirm', label:'客戶確認中', cls:'confirm' };
-    // 空白 = 腳本進行中
-    if (isOverdue)                 return { key:'overdue', label:'已逾期',     cls:'overdue' };
-    return { key:'active', label:'腳本進行中', cls:'active' };
-  } else {
-    if (s === '確認完畢') {
-      if (vs === '確認完畢')                              return { key:'done',    label:'全部完成',       cls:'done' };
-      if (vs === '需修改')                                return { key:'modify',  label:'影片待修改',     cls:'modify' };
-      if (vs === '影片需確認' || vs === '修改稿需確認')   return { key:'confirm', label:'影片確認中',     cls:'confirm' };
-      // 腳本OK，影片狀態空白 = 影片製作中
-      return { key:'making', label:'影片製作中', cls:'making' };
-    }
-    if (s === '客戶已回需修改')    return { key:'modify',  label:'腳本待修改',   cls:'modify' };
-    if (s === '客戶尚未確認' || s === '修改完成，需確認') return { key:'confirm', label:'客戶確認中',     cls:'confirm' };
-    // 空白 = 腳本進行中
-    if (isOverdue)                 return { key:'overdue', label:'已逾期',       cls:'overdue' };
+
     return { key:'active', label:'腳本進行中', cls:'active' };
   }
+
+  if (s === '確認完畢' && vs === '確認完畢') {
+    return { key:'done', label:'全部完成', cls:'done' };
+  }
+
+  if (isOverdue) return { key:'overdue', label:'已逾期', cls:'overdue' };
+
+  if (s === '確認完畢') {
+    if (vs === '需修改') return { key:'modify', label:'影片待修改', cls:'modify' };
+    if (vs === '影片需確認' || vs === '修改稿需確認') return { key:'confirm', label:'影片確認中', cls:'confirm' };
+    return { key:'making', label:'影片製作中', cls:'making' };
+  }
+
+  if (s === '客戶已回需修改') return { key:'modify', label:'腳本待修改', cls:'modify' };
+  if (s === '客戶尚未確認' || s === '修改完成，需確認') return { key:'confirm', label:'客戶確認中', cls:'confirm' };
+
+  return { key:'active', label:'腳本進行中', cls:'active' };
 }
+
 
 function parseDateTW(str) {
   if (!str) return null;
@@ -489,13 +495,16 @@ const all = [
 .filter(({t,type})=>taskStatus(t,type).key!=='done')
 .filter(({t,type})=>filterTask(t,type))
 .sort((a,b)=>{
+  const sa = SORT_ORDER[taskStatus(a.t,a.type).key] ?? 5;
+  const sb = SORT_ORDER[taskStatus(b.t,b.type).key] ?? 5;
+  if (sa !== sb) return sa - sb;
+
   const da = parseDateTW(a.t.dueDate || a.t['完成日期']);
   const db = parseDateTW(b.t.dueDate || b.t['完成日期']);
 
   if (da && db) return da.getTime() - db.getTime();
   if (da) return -1;
   if (db) return 1;
-
   return 0;
 });
 
@@ -509,22 +518,31 @@ const all = [
       return `<th class="${isToday?'today-col':''}" style="min-width:28px">${d.getMonth()+1}/${d.getDate()}<br><span style="opacity:.6">${['日','一','二','三','四','五','六'][d.getDay()]}</span></th>`;
     }).join('')}</tr>`;
 
-  const trs = all.map(({t,type})=>{
-    const due = parseDateTW(t.dueDate || t['完成日期']);
-    const st  = taskStatus(t,type);
-    const label = `${t.brand||''} ${t.product||''}`.trim();
-    const cells = days.map(d=>{
-      if (!due) return '<td></td>';
-      if (Math.abs((due.getTime()-d.getTime())/86400000)<0.5) {
-        const cls = st.key==='overdue'?'gbar-overdue':type==='video'?'gbar-video':'gbar-thread';
-        return `<td><div class="gantt-bar ${cls}">${html(t.taskId.slice(-5))}</div></td>`;
-      }
-      return '<td></td>';
-    }).join('');
-    return `<tr><td class="row-label" title="${html(label)}">${html(label)}</td>${cells}</tr>`;
+const firstDay = days[0];
+
+const trs = all.map(({t,type})=>{
+  const due = parseDateTW(t.dueDate || t['完成日期']);
+  const st  = taskStatus(t,type);
+  const label = `${t.brand||''} ${t.product||''}`.trim();
+
+  const cells = days.map((d, index)=>{
+    if (!due) return '<td></td>';
+
+    const showAsOverdueAtFirstCol = due < firstDay && index === 0;
+    const showOnDueDate = Math.abs((due.getTime()-d.getTime())/86400000)<0.5;
+
+    if (showAsOverdueAtFirstCol || showOnDueDate) {
+      const cls = st.key==='overdue'?'gbar-overdue':type==='video'?'gbar-video':'gbar-thread';
+      return `<td><div class="gantt-bar ${cls}">${html(t.taskId.slice(-5))}</div></td>`;
+    }
+
+    return '<td></td>';
   }).join('');
 
-  g('ganttTable').innerHTML = `<thead>${ths}</thead><tbody>${trs}</tbody>`;
+  return `<tr><td class="row-label" title="${html(label)}">${html(label)}</td>${cells}</tr>`;
+}).join('');
+
+g('ganttTable').innerHTML = `<thead>${ths}</thead><tbody>${trs}</tbody>`;
 }
 
 // ─── 品牌篩選 ──────────────────────────────────────────────
