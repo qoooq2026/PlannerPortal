@@ -764,7 +764,8 @@ async function saveTask(rowId, taskId, type, sheetName) {
 let vlink = '';
 
 if (isVideo) {
-  fields['畫面'] = gv('ep_img_'+rowId);
+  const screenVal = gv('ep_img_'+rowId).trim();
+  if (screenVal) fields['畫面'] = screenVal;
 
   const vsVal = gv('ep_vstatus_'+rowId);
   if (vsVal) fields['影片-狀態'] = vsVal;
@@ -774,7 +775,9 @@ if (isVideo) {
   vlink = gv('ep_vlink_'+rowId).trim();
   if (vlink) linkFields['影片連結'] = vlink;
 } else {
-  fields['留言'] = gv('ep_comment_'+rowId);
+  const commentVal = gv('ep_comment_'+rowId).trim();
+  if (commentVal) fields['留言'] = commentVal;
+
 ['圖片1','圖片2','圖片3'].forEach((f,i)=>{
   const u = gv('ep_img'+(i+1)+'_'+rowId).trim();
   if (!u) return;
