@@ -807,9 +807,11 @@ async function saveTask(rowId, taskId, type, sheetName) {
   const personaVal = gv('ep_persona_'+rowId);
   if (personaVal) fields['人設'] = personaVal;
 
-  fields['腳本內容'] = gv('ep_content_'+rowId);
-  const cfVal = gv('ep_cfeedback_'+rowId);
-  if (cfVal !== undefined) fields['客戶回饋'] = cfVal;
+const scriptVal = gv('ep_content_'+rowId).trim();
+if (scriptVal) fields['腳本內容'] = scriptVal;
+
+const cfVal = gv('ep_cfeedback_'+rowId).trim();
+if (cfVal) fields['客戶回饋'] = cfVal;
 
 let vlink = '';
 
@@ -820,7 +822,8 @@ if (isVideo) {
   const vsVal = gv('ep_vstatus_'+rowId);
   if (vsVal) fields['影片-狀態'] = vsVal;
 
-  fields['影片-回饋'] = gv('ep_vfeedback_'+rowId);
+  const vfVal = gv('ep_vfeedback_'+rowId).trim();
+  if (vfVal) fields['影片-回饋'] = vfVal;
 
   vlink = gv('ep_vlink_'+rowId).trim();
   if (vlink) linkFields['影片連結'] = vlink;
