@@ -126,9 +126,22 @@ a:hover{text-decoration:underline}
 
 .task-head{display:flex;align-items:center;gap:8px;padding:11px 14px;cursor:pointer;flex-wrap:wrap;gap:6px}
 .task-head:hover{background:var(--surface2)}
-.task-id{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--ink3);background:var(--bg2);border-radius:4px;padding:2px 6px;white-space:nowrap;flex-shrink:0;max-width:180px;overflow:hidden;text-overflow:ellipsis}
+.task-id{
+  font-family:'JetBrains Mono',monospace;
+  font-size:9px;
+  color:var(--ink3);
+  background:var(--bg2);
+  border-radius:4px;
+  padding:2px 6px;
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+  max-width:none;
+  word-break:break-all;
+  flex-shrink:1;
+}
 .task-brand{font-size:12px;font-weight:700;color:var(--ink);flex-shrink:0}
-.task-product{font-size:12px;color:var(--ink2)}
+.task-product{font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .task-persona{font-size:10px;color:var(--purple);background:var(--purple-light);border:1px solid #ddd0f0;border-radius:4px;padding:2px 7px;flex-shrink:0}
 .task-feedback{font-size:10px;color:var(--yellow);background:var(--yellow-light);border:1px solid #fde4b8;border-radius:4px;padding:2px 7px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0}
 
@@ -217,7 +230,13 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
   .stat-pill .sp-num{font-size:15px}
   .gantt-wrap{display:none}
   .task-head{gap:4px;flex-wrap:wrap}
-  .task-id{max-width:120px;overflow:hidden;text-overflow:ellipsis}
+  .task-id{
+  max-width:100%;
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+  word-break:break-all;
+  }
   .task-brand{font-size:11px}
   .task-product{font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .task-persona,.task-feedback{display:none} /* 手機版bar不顯示，點開才看 */
@@ -533,7 +552,7 @@ const trs = all.map(({t,type})=>{
 
     if (showAsOverdueAtFirstCol || showOnDueDate) {
       const cls = st.key==='overdue'?'gbar-overdue':type==='video'?'gbar-video':'gbar-thread';
-      return `<td><div class="gantt-bar ${cls}">${html(t.taskId.slice(-5))}</div></td>`;
+      return `<td><div class="gantt-bar ${cls}" title="${html(label)}">${html(label)}</div></td>`;
     }
 
     return '<td></td>';
@@ -650,7 +669,7 @@ function taskRowHTML(t, type) {
 
   return `<div class="task-row ${st.key}" id="${id}">
     <div class="task-head">
-      <span class="task-id" title="${html(t.taskId)}" style="user-select:text;cursor:text;font-size:9px;flex-shrink:0">${html(t.taskId)}</span>
+      <span class="task-id" title="${html(t.taskId)}" style="user-select:text;cursor:text;font-size:9px">${html(t.taskId)}</span>
       <span class="task-brand">${html(t.brand || t['品牌'] || '')}</span>
       <span class="task-product">${html(t.product || t['商品'] || '')}</span>
       ${personaText ? `<span class="task-persona">👤 ${html(personaText)}</span>` : ''}
