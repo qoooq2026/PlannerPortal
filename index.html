@@ -357,32 +357,44 @@ function taskStatus(t, type) {
   const now = new Date(); now.setHours(0,0,0,0);
   const isOverdue = due && due < now;
 
+  // 真實業務狀態（不受逾期影響）
+  function realStatus() {
+    if (type === 'thread') {
+      if (s === '確認完畢') return { key:'done', label:'確認完畢' };
+      if (s === '客戶已回需修改') return { key:'modify', label:'待修改' };
+      if (s === '客戶尚未確認' || s === '修改完成，需確認') return { key:'confirm', label:'客戶確認中' };
+      return { key:'active', label:'進行中' };
+    }
+    if (s === '確認完畢' && vs === '確認完畢') return { key:'done', label:'全部完成' };
+    if (s === '確認完畢') {
+      if (vs === '需修改') return { key:'modify', label:'影片待修改' };
+      if (vs === '影片需確認' || vs === '修改稿需確認') return { key:'confirm', label:'影片確認中' };
+      return { key:'making', label:'影片製作中' };
+    }
+    if (s === '客戶已回需修改') return { key:'modify', label:'腳本待修改' };
+    if (s === '客戶尚未確認' || s === '修改完成，需確認') return { key:'confirm', label:'客戶確認中' };
+    return { key:'active', label:'進行中' };
+  }
+
+  const real = realStatus();
+
   if (type === 'thread') {
-    if (s === '確認完畢') return { key:'done', label:'確認完畢', cls:'done' };
-
-    if (isOverdue) return { key:'overdue', label:'已逾期', cls:'overdue' };
-
+    if (s === '確認完畢') return { ...real, isOverdue: false };
+    if (isOverdue) return { key:'overdue', label:'已逾期', cls:'overdue', sub: real };
     if (s === '客戶已回需修改') return { key:'modify', label:'腳本待修改', cls:'modify' };
     if (s === '客戶尚未確認' || s === '修改完成，需確認') return { key:'confirm', label:'客戶確認中', cls:'confirm' };
-
     return { key:'active', label:'腳本進行中', cls:'active' };
   }
 
-  if (s === '確認完畢' && vs === '確認完畢') {
-    return { key:'done', label:'全部完成', cls:'done' };
-  }
-
-  if (isOverdue) return { key:'overdue', label:'已逾期', cls:'overdue' };
-
+  if (s === '確認完畢' && vs === '確認完畢') return { key:'done', label:'全部完成', cls:'done' };
+  if (isOverdue) return { key:'overdue', label:'已逾期', cls:'overdue', sub: real };
   if (s === '確認完畢') {
     if (vs === '需修改') return { key:'modify', label:'影片待修改', cls:'modify' };
     if (vs === '影片需確認' || vs === '修改稿需確認') return { key:'confirm', label:'影片確認中', cls:'confirm' };
     return { key:'making', label:'影片製作中', cls:'making' };
   }
-
   if (s === '客戶已回需修改') return { key:'modify', label:'腳本待修改', cls:'modify' };
   if (s === '客戶尚未確認' || s === '修改完成，需確認') return { key:'confirm', label:'客戶確認中', cls:'confirm' };
-
   return { key:'active', label:'腳本進行中', cls:'active' };
 }
 
@@ -675,6 +687,7 @@ function taskRowHTML(t, type) {
       ${personaText ? `<span class="task-persona">👤 ${html(personaText)}</span>` : ''}
       ${feedbackText ? `<span class="task-feedback" title="${html(feedbackText)}">💬 ${html(feedbackText.slice(0, 40))}</span>` : ''}
       <span class="badge ${st.cls}">${st.label}</span>
+${st.sub ? `<span class="badge ${st.sub.key}" style="opacity:.75;font-size:9px">${st.sub.label}</span>` : ''}
       <span class="task-due">${html(t.dueDate || t['完成日期'] || '')}</span>
       <button class="edit-btn" onclick="toggleEdit('${id}','${esc(t.taskId)}','${type}')" title="編輯">✏️ 編輯</button>
     </div>
