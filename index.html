@@ -317,9 +317,6 @@ const S = {
   tasks:{ video:[], thread:[] },
   filter:{ brand:'all', type:'all', search:'' },
 };
-
-const VIDEO_PERSONAS = ['','分享愛用好物','分享日常生活好物','分享保養品美妝好物','分享健康保健食品','分享美食跑咖'];
-const THREAD_PERSONAS = ['','女 02年 追星女 分享愛用','女 01年 社畜 分享愛用小物','女 美妝保養','女 分享愛用物','女 追韓娛 分享愛用','女 99年 追韓娛 分享愛用','男 26 想賺錢的社畜 發過投顧','已婚女性 年輕媽媽 無子','已婚男性 年輕爸爸 無子','有女友 30歲 幽默老闆','有男友 35歲 女強人','已婚女性 兩寶媽媽','已婚女性 一寶爸爸','單身狗 狗'];
 // ★ 狀態第一個是空白，預設不選
 const STATUS_OPTS  = ['','客戶尚未確認','客戶已回需修改','修改完成，需確認','確認完畢'];
 const VSTATUS_OPTS = ['','影片需確認','需修改','修改稿需確認','確認完畢'];
@@ -744,7 +741,6 @@ async function loadEditPanel(rowId, taskId, type) {
 
 function buildEditPanel(rowId, taskId, type, t, prodInfo) {
   const isVideo = type==='video';
-  const personas = isVideo ? VIDEO_PERSONAS : THREAD_PERSONAS;
   const sheetName = t.sheetName || '';
   const statusVal = t.status || t['狀態'] || '';
   const personaVal = t.persona || t['人設'] || '';
@@ -776,7 +772,7 @@ function buildEditPanel(rowId, taskId, type, t, prodInfo) {
   let out = `<div class="edit-inner"><div class="ep-grid">`;
 
     out += `<div><div class="field-label">狀態</div>${sel('ep_status_'+rowId, STATUS_OPTS, statusVal)}</div>`;
-    out += `<div><div class="field-label">人設</div>${sel('ep_persona_'+rowId, personas, personaVal)}</div>`;
+    out += `<div class="ep-full"><div class="field-label">人設</div>${ta('ep_persona_'+rowId, personaVal, '請輸入人設')}</div>`;
     out += `<div class="ep-full"><div class="field-label">腳本內容</div>${ta('ep_content_'+rowId, contentVal)}</div>`;
 
   if (isVideo) {
