@@ -266,7 +266,7 @@ textarea{resize:vertical;min-height:88px;line-height:1.6}
     <div style="font-weight:900;font-size:18px;margin-bottom:8px">企劃任務牆</div>
     <div style="font-size:12px;color:#6b5f4e;margin-bottom:16px">請輸入 access key</div>
     <input id="accessKeyInput" type="password" placeholder="access key" style="width:100%;padding:12px;border:1.5px solid #ddd5c4;border-radius:8px;font-size:16px;margin-bottom:12px">
-    <button onclick="submitAccessKey()" style="width:100%;padding:12px;border:0;border-radius:8px;background:#2e7d52;color:white;font-weight:800;cursor:pointer">進入</button>
+    <button id="accessKeyBtn" onclick="submitAccessKey()" style="width:100%;padding:12px;border:0;border-radius:8px;background:#2e7d52;color:white;font-weight:800;cursor:pointer">進入</button>
     <div id="accessKeyMsg" style="font-size:12px;color:#c0392b;margin-top:10px;min-height:18px"></div>
   </div>
 </div>
@@ -333,7 +333,9 @@ const STATUS_OPTS  = ['','客戶尚未確認','客戶已回需修改','修改完
 const VSTATUS_OPTS = ['','影片需確認','需修改','修改稿需確認','確認完畢'];
 
 // ─── API ───────────────────────────────────────────────────
-async function api(action, params={}) {
+const sleep_ = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function api(action, params={}, retry=4) {
   const url = new URL(GAS_URL);
   url.searchParams.set('mode', 'planner');
   url.searchParams.set('action', action);
@@ -343,16 +345,31 @@ async function api(action, params={}) {
   }
 
   Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v ?? ''));
-  const r = await fetch(url.toString());
-  const d = await r.json();
-  if (d.ok === false) throw new Error(d.error || 'API error');
-  return d;
+
+  try {
+    const r = await fetch(url.toString(), { cache: 'no-store' });
+    const d = await r.json();
+    if (d.ok === false) throw new Error(d.error || 'API error');
+    return d;
+  } catch (err) {
+    const msg = String(err && err.message ? err.message : err).toLowerCase();
+
+    if (retry > 0 && (msg.includes('fetch') || msg.includes('network'))) {
+      await sleep_(1200);
+      return api(action, params, retry - 1);
+    }
+
+    throw err;
+  }
 }
 async function apiPost(body) {
   // GAS 不支援跨域 POST（CORS preflight 被擋）
   // 改用 GET + query string 傳所有參數
   const url = new URL(GAS_URL);
   url.searchParams.set('mode', 'planner');
+  if (ACCESS_KEY) {
+  url.searchParams.set('key', ACCESS_KEY);
+}
   Object.entries({...body}).forEach(([k,v]) => {
     if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
   });
@@ -381,6 +398,7 @@ function showAuthScreen() {
 async function submitAccessKey() {
   const input = document.getElementById('accessKeyInput');
   const msg = document.getElementById('accessKeyMsg');
+  const btn = document.getElementById('accessKeyBtn');
   const key = String(input && input.value || '').trim();
 
   if (!key) {
@@ -389,6 +407,14 @@ async function submitAccessKey() {
   }
 
   ACCESS_KEY = key;
+
+  if (msg) msg.textContent = '驗證中，請稍候…';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '驗證中…';
+    btn.style.opacity = '.65';
+    btn.style.cursor = 'wait';
+  }
 
   try {
     await api('teams');
@@ -402,11 +428,20 @@ async function submitAccessKey() {
     const auth = document.getElementById('authScreen');
     if (auth) auth.style.display = 'none';
 
+    if (msg) msg.textContent = '';
     init();
+
   } catch (err) {
     ACCESS_KEY = '';
     localStorage.removeItem('planner_access_key');
+
     if (msg) msg.textContent = err.message || 'access key 不正確';
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '進入';
+      btn.style.opacity = '1';
+      btn.style.cursor = 'pointer';
+    }
   }
 }
 
@@ -414,6 +449,12 @@ function bootWithAuth() {
   if (!hasAccessKey()) {
     showAuthScreen();
     return;
+  }
+
+  const url = new URL(window.location.href);
+  if (!url.searchParams.get('key') && ACCESS_KEY) {
+    url.searchParams.set('key', ACCESS_KEY);
+    history.replaceState(null, '', url.toString());
   }
 
   init();
@@ -502,7 +543,7 @@ async function loadTeams() {
 }
 function chooseTeam(team) {
   S.team = team;
-  history.pushState(null,'',`?team=${encodeURIComponent(team)}`);
+  setPlannerRoute_({ team });
   loadMembers(team);
 }
 
@@ -526,10 +567,19 @@ async function loadMembers(team) {
 }
 function chooseMember(member) {
   S.member = member;
-  history.pushState(null,'',`?team=${encodeURIComponent(S.team)}&member=${encodeURIComponent(member)}`);
+  setPlannerRoute_({ team: S.team, member });
   loadTasks(member);
 }
+function setPlannerRoute_(params) {
+  const url = new URL(window.location.href);
+  url.search = '';
 
+  if (ACCESS_KEY) url.searchParams.set('key', ACCESS_KEY);
+  if (params.team) url.searchParams.set('team', params.team);
+  if (params.member) url.searchParams.set('member', params.member);
+
+  history.pushState(null, '', url.toString());
+}
 // ─── 兩段式載入：先顯示主控表清單，後台補客戶表完整資料 ──
 async function loadTasks(member) {
   show('sceneTask');
@@ -1001,8 +1051,8 @@ function updateCrumbs() {
   }).join('<span class="crumb-sep"> › </span>');
 }
 function goTeam(){
-  S.member='';
-  history.pushState(null,'',S.team?`?team=${encodeURIComponent(S.team)}`:'?');
+  S.member = '';
+  setPlannerRoute_({ team: S.team });
   loadMembers(S.team);
 }
 function g(id){return document.getElementById(id);}
