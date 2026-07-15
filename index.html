@@ -1006,22 +1006,39 @@ if (cimgVal) {
     await apiPost({ action:'save', taskId, type, sheetName, fields:JSON.stringify(fields), linkFields:JSON.stringify(linkFields) });
     toast('✅ 已儲存');
     Object.keys(_openPanels).forEach(k => delete _openPanels[k]);
+
     const arr = isVideo ? S.tasks.video : S.tasks.thread;
     const idx = arr.findIndex(t=>t.taskId===taskId);
+
     if (idx!==-1) {
-      if (statusVal) arr[idx].status = statusVal;
-      if (personaVal) arr[idx].persona = personaVal;
-      if (isVideo && fields['影片-狀態']) arr[idx].videoStatus = fields['影片-狀態'];
-      if (isVideo) {
-         if (Object.prototype.hasOwnProperty.call(fields, '畫面')) {
-             arr[idx].screenDescription = fields['畫面'];
-             arr[idx].screenshot = fields['畫面'];
-             arr[idx]['畫面'] = fields['畫面'];
-           }
-         const latestVlink = gv('ep_vlink_'+rowId).trim();
-        if (latestVlink) arr[idx].videoLink = latestVlink;
-      }
+      const target = arr[idx];
+
+      // 中文鍵 → 英文鍵對照，兩邊都要更新
+      // (taskStatus / taskRowHTML / buildEditPanel 有些讀中文鍵、有些讀英文鍵)
+      const FIELD_KEY_MAP = {
+        '狀態': 'status',
+        '人設': 'persona',
+        '腳本內容': 'scriptContent',
+        '客戶回饋': 'clientFeedback',
+        '畫面': 'screenDescription',
+        '影片-狀態': 'videoStatus',
+        '影片-回饋': 'videoFeedback',
+        '留言': 'comment',
+        '圖片1': 'image1',
+        '圖片2': 'image2',
+        '圖片3': 'image3',
+        '留言內圖片': 'commentImg',
+        '影片連結': 'videoLink'
+      };
+
+      Object.entries({ ...fields, ...linkFields }).forEach(([cnKey, val]) => {
+        target[cnKey] = val;
+        const enKey = FIELD_KEY_MAP[cnKey];
+        if (enKey) target[enKey] = val;
+        if (cnKey === '畫面') target.screenshot = val; // 舊欄位相容
+      });
     }
+
     renderStats();
     renderGantt();
     renderTasks();
