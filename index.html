@@ -900,7 +900,7 @@ function buildEditPanel(rowId, taskId, type, t, prodInfo) {
   if (isVideo) {
     const screenVal = t.screenDescription || t.screenshot || t['畫面'] || t['畫面說明'] || '';
     out += `<div class="ep-full"><div class="field-label">畫面說明</div>${ta('ep_img_'+rowId, screenVal)}</div>`;
-    out += `<div class="ep-full"><div class="field-label">客戶回饋</div>${ta('ep_cfeedback_'+rowId, clientFeedbackVal)}</div>`;
+    out += `<div class="ep-full"><div class="field-label">客戶回饋</div>${feedbackField('ep_cfeedback_'+rowId, clientFeedbackVal)}</div>`;
     out += `<hr class="ep-divider"/><div class="ep-section-label">🎬 影片區</div>`;
     out += `<div><div class="field-label">影片狀態</div>${sel('ep_vstatus_'+rowId, VSTATUS_OPTS, videoStatusVal)}</div>`;
     out += `<div><div class="field-label">影片回饋</div>${ta('ep_vfeedback_'+rowId, videoFeedbackVal, '可空白')}</div>`;
@@ -921,7 +921,7 @@ function buildEditPanel(rowId, taskId, type, t, prodInfo) {
     out += `<div class="ep-full"><div class="field-label">留言</div>${ta('ep_comment_'+rowId, commentVal)}</div>`;
     // 留言內圖片：只顯示1欄（表頭只有1個）
     out += `<div class="ep-full"><div class="field-label">留言內圖片</div>${linkField('ep_cimg1_'+rowId, commentImgVal, '留言內圖片')}</div>`;
-    out += `<div class="ep-full"><div class="field-label">客戶回饋</div>${ta('ep_cfeedback_'+rowId, clientFeedbackVal)}</div>`;
+    out += `<div class="ep-full"><div class="field-label">客戶回饋</div>${feedbackField('ep_cfeedback_'+rowId, clientFeedbackVal)}</div>`;
   }
 
   if (prodInfo && (prodInfo.info||prodInfo.notes)) {
@@ -939,7 +939,38 @@ function buildEditPanel(rowId, taskId, type, t, prodInfo) {
   </div>`;
   return out;
 }
+function extractUrls_(value) {
+  return (String(value || '').match(/https?:\/\/[^\s"'<>，,]+/gi) || [])
+    .map(u => u.trim())
+    .filter((u, i, arr) => arr.indexOf(u) === i);
+}
 
+function renderUrlPreviews_(value, label) {
+  const urls = extractUrls_(value);
+
+  return urls.map((url, i) =>
+    `<div class="link-preview">
+      <a href="${html(url)}" target="_blank" rel="noopener noreferrer">▶ 開啟${html(label)}${i + 1}</a>
+    </div>`
+  ).join('');
+}
+
+function refreshFeedbackLinks_(id) {
+  const textarea = document.getElementById(id);
+  const preview = document.getElementById(id + '_links');
+  if (!textarea || !preview) return;
+
+  preview.innerHTML = renderUrlPreviews_(textarea.value, '客戶回饋連結');
+}
+
+function feedbackField(id, value) {
+  const text = String(value || '');
+
+  return `
+    <textarea id="${id}" placeholder="可貼文字或多個連結，一行一個" oninput="refreshFeedbackLinks_('${id}')">${html(text)}</textarea>
+    <div id="${id}_links">${renderUrlPreviews_(text, '客戶回饋連結')}</div>
+  `;
+}
 // ─── 儲存 ──────────────────────────────────────────────────
 async function saveTask(rowId, taskId, type, sheetName) {
   const btn = document.getElementById('ep_savebtn_'+rowId);
